@@ -18,84 +18,45 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-
 @Configuration
 @EnableMethodSecurity
-public class SecurityConfig{
+public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throw exception{
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // Bearer-token API: no cookie auth yet, so CSRF doesn't apply.
+                // Phase 3 adds CSRF protection for the cookie-based refresh endpoint.
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
-                .sessionManagement(s ->
-                        s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(h -> h
                         .contentTypeOptions(Customizer.withDefaults())
                         .frameOptions(f -> f.deny())
-                        .httpStrictTransportSecurity(
-                                hsts -> hsts
-                                        .includeSubDomains(true)
-                                        .maxAgeInSeconds(31_536_000)
-                        )
-                )
-                .exceptionHandling(e ->
-                        e.authenticationEntryPoint(
-                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)
-                        )
-                )
+                        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000)))
+                .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/actuator/health/**",
-                                "/actuator/info"
-                        ).permitAll()
-
-                        .requestmatchers(
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui/html"
-                        ).permitAll()
-
-                        .anyRequest().authenticated()
-                );
+                        .requestMatchers(HttpMethod.GET, "/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .anyRequest().authenticated());
         return http.build();
     }
 
     @Bean
-    CorsConfigurationSource corsConfigrationSource(
-            @Value("${app.cors.allowed-origins}") String origins
-    ){
+    CorsConfigurationSource corsConfigurationSource(@Value("${app.cors.allowed-origins}") String origins) {
         CorsConfiguration config = new CorsConfiguration();
-
         List<String> allowed = Arrays.stream(origins.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-
-        config.setAllowedOrigins(allowed);
-
-        config.setAllowedMethods(
-                List.of("GET", "POST", "PUT", "PATCH", "DELETE","OPTIONS")
-        );
-
-        config.setAllowedHeaders(
-                List.of("Authorization", "Content-Type", "Idempotency-Key")
-        );
-
+        config.setAllowedOrigins(allowed); // explicit allowlist, never "*"
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));
         config.setExposedHeaders(List.of("X-Trace-Id"));
-
         config.setAllowCredentials(true);
-
         config.setMaxAge(3600L);
-
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-
         source.registerCorsConfiguration("/**", config);
-
         return source;
     }
-
-
 }
