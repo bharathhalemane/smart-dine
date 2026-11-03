@@ -1,5 +1,6 @@
-package com.example.qrorder.identity;
+package com.example.qrorder.identity.repository;
 
+import com.example.qrorder.identity.model.User;
 import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 

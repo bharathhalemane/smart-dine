@@ -1,4 +1,4 @@
-package com.example.qrorder.identity;
+package com.example.qrorder.identity.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

@@ -1,4 +1,4 @@
-package com.example.qrorder.identity;
+package com.example.qrorder.identity.model;
 
 import java.time.Instant;
 import org.springframework.data.annotation.CreatedDate;
@@ -59,4 +59,5 @@ public class User {
     public void setStatus(UserStatus status) { this.status = status; }
     public void setFailedLoginCount(int failedLoginCount) { this.failedLoginCount = failedLoginCount; }
     public void setLockedUntil(Instant lockedUntil) { this.lockedUntil = lockedUntil; }
+    public void setPlatformRole(PlatformRole platformRole) {this.platformRole=platformRole;}
 }

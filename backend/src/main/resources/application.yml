@@ -32,6 +32,10 @@ management:
 app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175}
+  jwt:
+    secret: ${APP_JWT_SECRET:}
+    issuer: qr-order
+    access-token-ttl: 15m
 
 springdoc:
   api-docs:
@@ -51,6 +55,10 @@ spring:
   config:
     activate:
       on-profile: dev
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:dev-only-secret-do-not-use-in-production-0123456789}
 
 springdoc:
   api-docs:
