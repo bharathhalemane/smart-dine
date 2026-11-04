@@ -126,6 +126,13 @@ public class AuthService{
         }
     }
 
+    public UserResponse currentUser(String userId) {
+        return users.findById(userId)
+                .filter(u -> u.getStatus() == UserStatus.ACTIVE)
+                .map(UserResponse::from)
+                .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, BAD_SESSION));
+    }
+
     private LoginResponse buildResponse(User user){
         return new LoginResponse(
                 jwtService.issueAccessToken(user),

@@ -6,11 +6,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 import com.example.qrorder.common.error.DomainException;
 import com.example.qrorder.common.error.ErrorCode;
 import com.example.qrorder.identity.service.AuthService;
@@ -112,6 +114,11 @@ public class AuthController{
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void resetPassword(@Valid @RequestBody ResetPasswordRequest request){
         passwordReset.reset(request.token(), request.newPassword());
+    }
+
+    @GetMapping("/me")
+    public UserResponse me(Authentication authentication){
+        return authService.currentUser(authentication.getName()); // the name is the userId
     }
 
     private static void requireGuardHeader(String value){
