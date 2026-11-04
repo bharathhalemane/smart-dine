@@ -16,12 +16,15 @@ import com.example.qrorder.common.error.ErrorCode;
 import com.example.qrorder.identity.service.AuthService;
 import com.example.qrorder.identity.service.AuthResult;
 import com.example.qrorder.identity.service.EmailVerificationService;
+import com.example.qrorder.identity.service.PasswordResetService;
 import com.example.qrorder.identity.dto.RegisterRequest;
 import com.example.qrorder.identity.dto.UserResponse;
 import com.example.qrorder.identity.dto.LoginRequest;
 import com.example.qrorder.identity.dto.LoginResponse;
 import com.example.qrorder.identity.dto.VerifyEmailRequest;
 import com.example.qrorder.identity.dto.ResendVerificationRequest;
+import com.example.qrorder.identity.dto.ForgotPasswordRequest;
+import com.example.qrorder.identity.dto.ResetPasswordRequest;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -33,14 +36,17 @@ public class AuthController{
     private final AuthService authService;
     private final RefreshCookies cookies;
     private final EmailVerificationService emailVerification;
+    private final PasswordResetService passwordReset;
 
     public AuthController(AuthService authService,
                           RefreshCookies cookies,
-                          EmailVerificationService emailVerification
+                          EmailVerificationService emailVerification,
+                          PasswordResetService passwordReset
     ){
         this.authService = authService;
         this.cookies = cookies;
         this.emailVerification = emailVerification;
+        this.passwordReset = passwordReset;
     }
 
     @PostMapping("/register")
@@ -94,6 +100,18 @@ public class AuthController{
     @ResponseStatus(HttpStatus.ACCEPTED)
     public void resendVerification(@Valid @RequestBody ResendVerificationRequest request){
         emailVerification.resend(request.email());
+    }
+
+    @PostMapping("/forgot-password")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void forgotPassword(@Valid @RequestBody ForgotPasswordRequest request){
+        passwordReset.requestReset(request.email());
+    }
+
+    @PostMapping("/reset-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void resetPassword(@Valid @RequestBody ResetPasswordRequest request){
+        passwordReset.reset(request.token(), request.newPassword());
     }
 
     private static void requireGuardHeader(String value){

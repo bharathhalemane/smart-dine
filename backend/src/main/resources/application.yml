@@ -52,6 +52,10 @@ app:
     ttl: 24h
     resend-cooldown: 60s
     link-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  password-reset:
+    ttl: 1h
+    resend-cooldown: 60s
+    link-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
 
 springdoc:
   api-docs:

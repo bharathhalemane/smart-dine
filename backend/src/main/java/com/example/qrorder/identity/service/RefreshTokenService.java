@@ -69,6 +69,14 @@ public class RefreshTokenService {
                 .ifPresent(t -> revokeFamily(t.getFamilyId(), now));
     }
 
+    /** Signs the user out everywhere: revokes every refresh token they own. */
+    public void revokeAllForUser(String userId) {
+        mongo.updateMulti(
+                Query.query(Criteria.where("userId").is(userId).and("revokedAt").isNull()),
+                new Update().set("revokedAt", clock.instant()),
+                RefreshToken.class);
+    }
+
     private String issue(String userId, String familyId) {
         String plain = Tokens.newToken();
         Instant now = clock.instant();

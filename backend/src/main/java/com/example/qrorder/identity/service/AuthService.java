@@ -10,7 +10,6 @@ import com.example.qrorder.identity.model.User;
 import com.example.qrorder.common.error.DomainException;
 import com.example.qrorder.common.error.ErrorCode;
 import com.example.qrorder.identity.config.JwtProperties;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,7 +22,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService{
 
-    private static final int BCRYPT_MAX_BYTES = 72;
     private static final String EMAIL_TAKEN = "An account with this email already exists";
     private static final String BAD_CREDENTIALS = "Invalid email or password";
     private static final String BAD_SESSION = "Invalid or expired session";
@@ -58,9 +56,7 @@ public class AuthService{
     }
 
     public User register(RegisterRequest request){
-        if(request.password().getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_BYTES){
-            throw new DomainException(ErrorCode.VALIDATION_FAILED, "Password must be at most 72 bytes");
-        }
+        PasswordPolicy.requireAcceptable(request.password());
 
         String email = User.normalizeEmail(request.email());
         if(users.existsByEmail(email)){
