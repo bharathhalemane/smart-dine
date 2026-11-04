@@ -56,6 +56,9 @@ app:
     ttl: 1h
     resend-cooldown: 60s
     link-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  bootstrap:
+    admin-email: ${APP_ADMIN_EMAIL:}
+    admin-password: ${APP_ADMIN_PASSWORD:}
 
 springdoc:
   api-docs:
