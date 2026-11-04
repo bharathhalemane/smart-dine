@@ -1,0 +1,22 @@
+package com.example.qrorder.tenancy.config;
+
+import com.example.qrorder.tenancy.context.TenantArgumentResolver;
+import java.util.List;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class TenantWebConfig implements WebMvcConfigurer {
+
+    private final TenantArgumentResolver tenantArgumentResolver;
+
+    public TenantWebConfig(TenantArgumentResolver tenantArgumentResolver) {
+        this.tenantArgumentResolver = tenantArgumentResolver;
+    }
+
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(tenantArgumentResolver);
+    }
+}

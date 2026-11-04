@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -54,6 +55,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler{
     ResponseEntity<ProblemDetail> handleUnexpected(Exception ex){
         log.error("Unhandled exception", ex);
         return build(ErrorCode.INTERNAL_ERROR, "An unexpected error occurred", List.of());
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ResponseEntity<ProblemDetail> handleOptimisticLock(OptimisticLockingFailureException ex) {
+        return build(ErrorCode.CONFLICT, "The data was changed by someone else. Please reload and try again.", List.of());
     }
 
     @Override
