@@ -37,12 +37,14 @@ public class AuthService{
     private final RefreshTokenService refreshTokens;
     private final Clock clock;
     private final String dummyHash;
+    private final EmailVerificationService emailVerification;
 
     public AuthService(UserRepository users,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        JwtProperties jwtProperties,
                        RefreshTokenService refreshTokens,
+                       EmailVerificationService emailVerification,
                        Clock clock
     ){
         this.users = users;
@@ -50,6 +52,7 @@ public class AuthService{
         this.jwtService = jwtService;
         this.jwtProperties = jwtProperties;
         this.refreshTokens = refreshTokens;
+        this.emailVerification = emailVerification;
         this.clock = clock;
         this.dummyHash = passwordEncoder.encode("timing-qualizer-not-a-real-password");
     }
@@ -67,7 +70,9 @@ public class AuthService{
         User user = new User(email, passwordEncoder.encode(request.password()), request.name().trim());
 
         try{
-            return users.save(user);
+            User saved = users.save(user);
+            emailVerification.sendVerification(saved);
+            return saved;
         }catch(DuplicateKeyException e){
             throw DomainException.conflict(EMAIL_TAKEN);
         }

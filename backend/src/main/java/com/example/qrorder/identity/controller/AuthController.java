@@ -15,10 +15,13 @@ import com.example.qrorder.common.error.DomainException;
 import com.example.qrorder.common.error.ErrorCode;
 import com.example.qrorder.identity.service.AuthService;
 import com.example.qrorder.identity.service.AuthResult;
+import com.example.qrorder.identity.service.EmailVerificationService;
 import com.example.qrorder.identity.dto.RegisterRequest;
 import com.example.qrorder.identity.dto.UserResponse;
 import com.example.qrorder.identity.dto.LoginRequest;
 import com.example.qrorder.identity.dto.LoginResponse;
+import com.example.qrorder.identity.dto.VerifyEmailRequest;
+import com.example.qrorder.identity.dto.ResendVerificationRequest;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -29,11 +32,15 @@ public class AuthController{
 
     private final AuthService authService;
     private final RefreshCookies cookies;
+    private final EmailVerificationService emailVerification;
 
-    public AuthController(AuthService authService, RefreshCookies cookies){
-
+    public AuthController(AuthService authService,
+                          RefreshCookies cookies,
+                          EmailVerificationService emailVerification
+    ){
         this.authService = authService;
         this.cookies = cookies;
+        this.emailVerification = emailVerification;
     }
 
     @PostMapping("/register")
@@ -75,6 +82,18 @@ public class AuthController{
         requireGuardHeader(guard);
         authService.logout(refreshToken);
         http.addHeader(HttpHeaders.SET_COOKIE, cookies.clear().toString());
+    }
+
+    @PostMapping("/verify-email")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void verifyEmail(@Valid @RequestBody VerifyEmailRequest request){
+        emailVerification.verify(request.token());
+    }
+
+    @PostMapping("/resend-verification")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void resendVerification(@Valid @RequestBody ResendVerificationRequest request){
+        emailVerification.resend(request.email());
     }
 
     private static void requireGuardHeader(String value){

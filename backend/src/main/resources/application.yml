@@ -9,6 +9,9 @@ spring:
     multipart:
       max-file-size: 5MB
       max-request-size: 6MB
+  mail:
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1025}
 
 server:
   port: 8080
@@ -28,6 +31,9 @@ management:
       probes:
         enabled: true
       show-details: never
+      health:
+        mail:
+          enabled: false
 
 app:
   cors:
@@ -40,6 +46,12 @@ app:
     ttl: 7d
     cookie-secure: true
     cookie-same-site: Strict
+  mail:
+    from: no-reply@qrorder.local
+  verification:
+    ttl: 24h
+    resend-cooldown: 60s
+    link-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
 
 springdoc:
   api-docs:
