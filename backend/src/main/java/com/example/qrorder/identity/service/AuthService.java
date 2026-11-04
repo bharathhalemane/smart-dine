@@ -5,11 +5,11 @@ import com.example.qrorder.identity.dto.LoginRequest;
 import com.example.qrorder.identity.dto.RegisterRequest;
 import com.example.qrorder.identity.dto.UserResponse;
 import com.example.qrorder.identity.repository.UserRepository;
-import com.example.qrorder.identity.config.JwtProperties;
 import com.example.qrorder.identity.model.UserStatus;
 import com.example.qrorder.identity.model.User;
 import com.example.qrorder.common.error.DomainException;
 import com.example.qrorder.common.error.ErrorCode;
+import com.example.qrorder.identity.config.JwtProperties;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -26,6 +26,7 @@ public class AuthService{
     private static final int BCRYPT_MAX_BYTES = 72;
     private static final String EMAIL_TAKEN = "An account with this email already exists";
     private static final String BAD_CREDENTIALS = "Invalid email or password";
+    private static final String BAD_SESSION = "Invalid or expired session";
     private static final int MAX_FAILED_LOGINS = 5;
     private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
 
@@ -33,6 +34,7 @@ public class AuthService{
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
+    private final RefreshTokenService refreshTokens;
     private final Clock clock;
     private final String dummyHash;
 
@@ -40,12 +42,14 @@ public class AuthService{
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        JwtProperties jwtProperties,
+                       RefreshTokenService refreshTokens,
                        Clock clock
     ){
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.jwtProperties = jwtProperties;
+        this.refreshTokens = refreshTokens;
         this.clock = clock;
         this.dummyHash = passwordEncoder.encode("timing-qualizer-not-a-real-password");
     }
@@ -69,7 +73,7 @@ public class AuthService{
         }
     }
 
-    public LoginResponse login(LoginRequest request){
+    public AuthResult login(LoginRequest request){
         String email = User.normalizeEmail(request.email());
         Instant now = clock.instant();
         Optional<User> found = users.findByEmail(email);
@@ -99,10 +103,36 @@ public class AuthService{
             users.save(user);
         }
 
-        String token = jwtService.issueAccessToken(user);
-        return new LoginResponse(token, "Bearer", jwtProperties.accessTokenTtl().toSeconds(), UserResponse.from(user));
+        return new AuthResult(buildResponse(user), refreshTokens.createSession(user.getId()));
     }
 
+    public AuthResult refresh(String presentedRefreshToken){
+        RefreshTokenService.Rotation rotation = refreshTokens.rotate(presentedRefreshToken);
+
+        User user = users.findById(rotation.userId())
+                .filter(u -> u.getStatus() == UserStatus.ACTIVE)
+                .orElse(null);
+        if(user == null) {
+            refreshTokens.revokeFamilyOf(rotation.refreshToken());
+            throw new DomainException(ErrorCode.UNAUTHENTICATED, BAD_SESSION);
+        }
+        return new AuthResult(buildResponse(user), rotation.refreshToken());
+    }
+
+    public void logout(String presentedRefreshToken){
+        if(presentedRefreshToken != null && !presentedRefreshToken.isBlank()){
+            refreshTokens.revokeFamilyOf(presentedRefreshToken);
+        }
+    }
+
+    private LoginResponse buildResponse(User user){
+        return new LoginResponse(
+                jwtService.issueAccessToken(user),
+                "Bearer",
+                jwtProperties.accessTokenTtl().toSeconds(),
+                UserResponse.from(user)
+        );
+    }
     private void recordFailure(User user, Instant now){
         boolean lockExpired = user.getLockedUntil() != null && !now.isBefore(user.getLockedUntil());
         int failures = (lockExpired ? 0: user.getFailedLoginCount()) + 1;
