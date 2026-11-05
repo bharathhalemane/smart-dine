@@ -5,6 +5,9 @@ import com.example.qrorder.identity.model.User;
 import com.example.qrorder.identity.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import java.util.Optional;
+import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -55,5 +58,11 @@ public class AccountService {
         }catch(DuplicateKeyException e){
             throw DomainException.conflict(EMAIL_TAKEN);
         }
+    }
+
+    public Map<String, AccountSummary> summaries(Collection<String> userIds) {
+        return users.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId,
+                        u -> new AccountSummary(u.getId(), u.getName(), u.getEmail())));
     }
 }

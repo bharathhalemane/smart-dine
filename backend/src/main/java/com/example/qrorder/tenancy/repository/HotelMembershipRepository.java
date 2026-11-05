@@ -11,4 +11,6 @@ public interface HotelMembershipRepository extends MongoRepository<HotelMembersh
     Optional<HotelMembership> findByHotelIdAndUserId(String hotelId, String userId);
 
     List<HotelMembership> findByUserIdAndStatus(String userId, MembershipStatus status);
+
+    List<HotelMembership> findByHotelIdAndStatus(String hotelId, MembershipStatus status);
 }
