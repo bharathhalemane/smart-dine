@@ -65,6 +65,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/resend-verification",
                                 "/api/v1/auth/forgot-password",
                                 "/api/v1/auth/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invitations/preview",
+                                "/api/v1/invitations/accept-new").permitAll()
                         .anyRequest().authenticated());
         return http.build();
     }

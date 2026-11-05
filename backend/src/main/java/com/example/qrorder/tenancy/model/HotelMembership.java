@@ -43,4 +43,7 @@ public class HotelMembership {
     public Instant getCreatedAt() { return createdAt; }
 
     public void setStatus(MembershipStatus status) { this.status = status; }
+    public void setRoles(Set<HotelRole> roles){
+        this.roles = Set.copyOf(roles);
+    }
 }
