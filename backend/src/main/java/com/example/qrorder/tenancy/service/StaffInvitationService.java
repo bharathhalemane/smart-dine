@@ -14,6 +14,7 @@ import com.example.qrorder.tenancy.model.HotelMembership;
 import com.example.qrorder.tenancy.model.HotelRole;
 import com.example.qrorder.tenancy.model.InvitationStatus;
 import com.example.qrorder.tenancy.model.MembershipStatus;
+import com.example.qrorder.tenancy.model.Permission;
 import com.example.qrorder.tenancy.model.StaffInvitation;
 import com.example.qrorder.tenancy.repository.HotelMembershipRepository;
 import com.example.qrorder.tenancy.repository.HotelRepository;
@@ -54,7 +55,7 @@ public class StaffInvitationService {
     }
 
     public InvitationResponse invite(TenantContext tenant, InviteStaffRequest request) {
-        tenant.requireAnyRole(HotelRole.OWNER, HotelRole.MANAGER);
+        tenant.require(Permission.MANAGE_STAFF);
 
         Set<HotelRole> roles = EnumSet.copyOf(request.roles());
         if (roles.contains(HotelRole.OWNER)) {
@@ -91,7 +92,7 @@ public class StaffInvitationService {
     }
 
     public List<InvitationResponse> listPending(TenantContext tenant) {
-        tenant.requireAnyRole(HotelRole.OWNER, HotelRole.MANAGER);
+        tenant.require(Permission.MANAGE_STAFF);
         Instant now = clock.instant();
         return invitations.findByHotelIdAndStatusOrderByCreatedAtDesc(tenant.hotelId(), InvitationStatus.PENDING)
                 .stream()

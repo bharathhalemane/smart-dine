@@ -36,6 +36,6 @@ public class TenantAccessService {
         if (hotel.getStatus() != HotelStatus.ACTIVE) {
             throw new DomainException(ErrorCode.FORBIDDEN, "This hotel is not active");
         }
-        return new TenantContext(hotelId, userId, Set.copyOf(membership.getRoles()));
+        return new TenantContext(hotelId, userId, Set.copyOf(membership.getRoles()), PermissionResolver.resolve(membership.getRoles(), hotel));
     }
 }

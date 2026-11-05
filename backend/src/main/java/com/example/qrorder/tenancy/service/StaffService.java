@@ -11,6 +11,7 @@ import com.example.qrorder.tenancy.model.Hotel;
 import com.example.qrorder.tenancy.model.HotelMembership;
 import com.example.qrorder.tenancy.model.HotelRole;
 import com.example.qrorder.tenancy.model.MembershipStatus;
+import com.example.qrorder.tenancy.model.Permission;
 import com.example.qrorder.tenancy.repository.HotelMembershipRepository;
 import java.time.Clock;
 import java.util.Comparator;
@@ -42,7 +43,7 @@ public class StaffService {
     }
 
     public List<StaffMemberResponse> list(TenantContext actor) {
-        actor.requireAnyRole(HotelRole.OWNER, HotelRole.MANAGER);
+        actor.require(Permission.MANAGE_STAFF);
         List<HotelMembership> active = memberships.findByHotelIdAndStatus(actor.hotelId(), MembershipStatus.ACTIVE);
         Map<String, AccountSummary> people = accounts.summaries(active.stream().map(HotelMembership::getUserId).toList());
 
@@ -55,7 +56,7 @@ public class StaffService {
 
     @Transactional
     public StaffMemberResponse changeRoles(TenantContext actor, String userId, ChangeRolesRequest request) {
-        actor.requireAnyRole(HotelRole.OWNER, HotelRole.MANAGER);
+        actor.require(Permission.MANAGE_STAFF);
         if (actor.userId().equals(userId)) {
             throw new DomainException(ErrorCode.FORBIDDEN, "You cannot change your own roles");
         }
@@ -81,7 +82,7 @@ public class StaffService {
 
     @Transactional
     public void remove(TenantContext actor, String userId) {
-        actor.requireAnyRole(HotelRole.OWNER, HotelRole.MANAGER);
+        actor.require(Permission.MANAGE_STAFF);
         HotelMembership target = activeTarget(actor, userId);
         if (!actor.userId().equals(userId)) {
             requireMayManage(actor, target); // leaving the hotel yourself is always allowed

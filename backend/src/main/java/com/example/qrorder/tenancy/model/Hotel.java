@@ -22,6 +22,8 @@ public class Hotel {
     private String address;
     private String timezone;
     private String currency;
+    private boolean waitersMayClearTables;   // default false
+    private boolean cashiersMayAdjustBills;  // default false
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -51,6 +53,8 @@ public class Hotel {
     public String getAddress() { return address; }
     public String getTimezone() { return timezone; }
     public String getCurrency() { return currency; }
+    public boolean isWaitersMayClearTables() { return waitersMayClearTables; }
+    public boolean isCashiersMayAdjustBills() { return cashiersMayAdjustBills; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -59,5 +63,7 @@ public class Hotel {
     public void setTimezone(String timezone) { this.timezone = timezone; }
     public void setStatus(HotelStatus status) { this.status = status; }
     public void setStatusReason(String statusReason) { this.statusReason = statusReason; }
+    public void setWaitersMayClearTables(boolean value) { this.waitersMayClearTables = value; }
+    public void setCashiersMayAdjustBills(boolean value) { this.cashiersMayAdjustBills = value; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }
