@@ -47,7 +47,7 @@ app:
     cookie-secure: true
     cookie-same-site: Strict
   mail:
-    from: no-reply@qrorder.local
+    from: ${APP_FROM_EMAIL:no-reply@qrorder.local}
   verification:
     ttl: 24h
     resend-cooldown: 60s
@@ -59,6 +59,10 @@ app:
   bootstrap:
     admin-email: ${APP_ADMIN_EMAIL:}
     admin-password: ${APP_ADMIN_PASSWORD:}
+  invitation:
+    ttl: 7d
+    link-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+
 
 springdoc:
   api-docs:
