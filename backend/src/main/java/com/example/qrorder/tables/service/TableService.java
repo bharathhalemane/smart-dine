@@ -20,11 +20,13 @@ public class TableService {
 
     private final DiningTableRepository tables;
     private final QrCredentialService qrCredentials;
+    private final ActiveSessionGuard sessionGuard;
     private final Clock clock;
 
-    public TableService(DiningTableRepository tables, QrCredentialService qrCredentials, Clock clock) {
+    public TableService(DiningTableRepository tables, QrCredentialService qrCredentials, ActiveSessionGuard sessionGuard,Clock clock) {
         this.tables = tables;
         this.qrCredentials = qrCredentials;
+        this.sessionGuard = sessionGuard;
         this.clock = clock;
     }
 
@@ -64,6 +66,10 @@ public class TableService {
         tenant.require(Permission.MANAGE_TABLES);
         DiningTable table = find(tenant, tableId);
 
+        boolean deactivating = Boolean.FALSE.equals(request.active()) && table.isActive();
+        if(deactivating){
+            requireNoActiveSession(tenant, table);
+        }
         if (request.number() != null) {
             String number = TableNumbers.normalize(request.number());
             if (!number.equals(table.getNumber())) {
@@ -79,7 +85,7 @@ public class TableService {
         if (request.section() != null) {
             table.setSection(trimToNull(request.section()));
         }
-        boolean deactivating = Boolean.FALSE.equals(request.active()) && table.isActive();
+
         if (request.active() != null) {
             table.setActive(request.active());
         }
@@ -101,10 +107,17 @@ public class TableService {
     public void deactivate(TenantContext tenant, String tableId) {
         tenant.require(Permission.MANAGE_TABLES);
         DiningTable table = find(tenant, tableId);
+        requireNoActiveSession(tenant, table);
         table.setActive(false);
         table.setUpdatedAt(clock.instant());
         tables.save(table);
         qrCredentials.revokeActive(tenant.hotelId(), table.getId(), tenant.userId());
+    }
+
+    private void requireNoActiveSession(TenantContext tenant, DiningTable table){
+        if(sessionGuard.hasActiveSession(tenant.hotelId(), table.getId())){
+            throw DomainException.conflict("This table has an open session. Clocse it before deactivating the table");
+        }
     }
 
     /** The only way services load a table by id: scoped to the caller's hotel. */

@@ -8,4 +8,5 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 public interface QrCredentialRepository extends MongoRepository<QrCredential, String> {
 
     Optional<QrCredential> findByHotelIdAndTableIdAndStatus(String hotelId, String tableId, QrStatus status);
+    Optional<QrCredential> findByTokenHash(String tokenHash);
 }
