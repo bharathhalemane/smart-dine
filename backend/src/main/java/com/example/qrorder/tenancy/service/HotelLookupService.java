@@ -1,6 +1,7 @@
 package com.example.qrorder.tenancy.service;
 
 import com.example.qrorder.tenancy.dto.PublicHotelInfo;
+import com.example.qrorder.tenancy.model.Hotel;
 import com.example.qrorder.tenancy.model.HotelStatus;
 import com.example.qrorder.tenancy.repository.HotelRepository;
 import java.util.Optional;
@@ -21,5 +22,9 @@ public class HotelLookupService {
         return hotels.findById(hotelId)
                 .filter(h -> h.getStatus() == HotelStatus.ACTIVE)
                 .map(h -> new PublicHotelInfo(h.getId(), h.getName()));
+    }
+
+    public Optional<String> findCurrency(String hotelId){
+        return hotels.findById(hotelId).map(Hotel::getCurrency);
     }
 }
