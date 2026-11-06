@@ -62,6 +62,8 @@ app:
   invitation:
     ttl: 7d
     link-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  qr:
+    customer-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
 
 
 springdoc:

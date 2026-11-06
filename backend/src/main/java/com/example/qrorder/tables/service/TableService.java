@@ -13,15 +13,18 @@ import java.util.Comparator;
 import java.util.List;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TableService {
 
     private final DiningTableRepository tables;
+    private final QrCredentialService qrCredentials;
     private final Clock clock;
 
-    public TableService(DiningTableRepository tables, Clock clock) {
+    public TableService(DiningTableRepository tables, QrCredentialService qrCredentials, Clock clock) {
         this.tables = tables;
+        this.qrCredentials = qrCredentials;
         this.clock = clock;
     }
 
@@ -56,6 +59,7 @@ public class TableService {
         return TableResponse.from(find(tenant, tableId));
     }
 
+    @Transactional
     public TableResponse update(TenantContext tenant, String tableId, UpdateTableRequest request) {
         tenant.require(Permission.MANAGE_TABLES);
         DiningTable table = find(tenant, tableId);
@@ -75,25 +79,32 @@ public class TableService {
         if (request.section() != null) {
             table.setSection(trimToNull(request.section()));
         }
+        boolean deactivating = Boolean.FALSE.equals(request.active()) && table.isActive();
         if (request.active() != null) {
             table.setActive(request.active());
         }
         table.setUpdatedAt(clock.instant());
 
         try {
-            return TableResponse.from(tables.save(table));
+            DiningTable saved = tables.save(table);
+            if (deactivating) {
+                qrCredentials.revokeActive(tenant.hotelId(), saved.getId(), tenant.userId());
+            }
+            return TableResponse.from(saved);
         } catch (DuplicateKeyException e) {
             throw numberTaken();
         }
     }
 
-    /** Soft delete: later sessions and orders keep pointing at this table. */
+    /** Soft delete: later sessions and orders keep pointing at this table. Its QR stops working. */
+    @Transactional
     public void deactivate(TenantContext tenant, String tableId) {
         tenant.require(Permission.MANAGE_TABLES);
         DiningTable table = find(tenant, tableId);
         table.setActive(false);
         table.setUpdatedAt(clock.instant());
         tables.save(table);
+        qrCredentials.revokeActive(tenant.hotelId(), table.getId(), tenant.userId());
     }
 
     /** The only way services load a table by id: scoped to the caller's hotel. */
