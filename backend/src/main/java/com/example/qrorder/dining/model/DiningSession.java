@@ -1,6 +1,8 @@
 package com.example.qrorder.dining.model;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.ArrayList;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
@@ -30,6 +32,7 @@ public class DiningSession {
     private boolean active = true;
     private Instant openedAt;
     private Instant closedAt;
+    private List<StatusChange> statusHistory = new ArrayList<>();
 
     @Version
     private Long version;
@@ -43,6 +46,8 @@ public class DiningSession {
         this.openedAt = openedAt;
     }
 
+    public record StatusChange(SessionStatus from, SessionStatus to, String byUserId, Instant at){}
+
     public String getId() { return id; }
     public String getHotelId() { return hotelId; }
     public String getTableId() { return tableId; }
@@ -51,6 +56,9 @@ public class DiningSession {
     public boolean isActive() { return active; }
     public Instant getOpenedAt() { return openedAt; }
     public Instant getClosedAt() { return closedAt; }
+    public List<StatusChange> getStatusHistory() {
+        return statusHistory == null ? List.of() : List.copyOf(statusHistory);
+    }
 
     public void close(Instant at) {
         this.status = SessionStatus.CLOSED;

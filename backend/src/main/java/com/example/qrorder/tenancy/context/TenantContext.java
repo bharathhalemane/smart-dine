@@ -40,4 +40,13 @@ public record TenantContext(String hotelId, String userId, Set<HotelRole> roles,
             throw new DomainException(ErrorCode.FORBIDDEN, "You do not have permission to do this");
         }
     }
+
+    public void requireAnyPermission(Permission... allowed) {
+        for (Permission permission : allowed) {
+            if (permissions.contains(permission)) {
+                return;
+            }
+        }
+        throw new DomainException(ErrorCode.FORBIDDEN, "You do not have permission to do this");
+    }
 }

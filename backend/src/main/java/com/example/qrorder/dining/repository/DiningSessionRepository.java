@@ -10,4 +10,6 @@ public interface DiningSessionRepository extends MongoRepository<DiningSession, 
     Optional<DiningSession> findByTableIdAndActiveTrue(String tableId);
 
     List<DiningSession> findByHotelIdAndActiveTrue(String hotelId);
+
+    Optional<DiningSession> findByIdAndHotelId(String id, String hotelId);
 }
