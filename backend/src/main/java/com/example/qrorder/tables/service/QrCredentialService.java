@@ -23,35 +23,48 @@ public class QrCredentialService {
 
     private final DiningTableRepository tables;
     private final QrCredentialRepository credentials;
+    private final QrImageService images;
     private final QrProperties props;
     private final Clock clock;
 
     public QrCredentialService(DiningTableRepository tables, QrCredentialRepository credentials,
-                               QrProperties props, Clock clock) {
+                               QrImageService images, QrProperties props, Clock clock) {
         this.tables = tables;
         this.credentials = credentials;
+        this.images = images;
         this.props = props;
         this.clock = clock;
     }
 
-    /** Issues a credential. If one is already active it is revoked first, in the same transaction (rotation). */
     @Transactional
     public IssuedQrResponse issue(TenantContext tenant, String tableId) {
         tenant.require(Permission.MANAGE_TABLES);
-        DiningTable table = findTable(tenant, tableId);
+        return issueForTable(tenant, findTable(tenant, tableId));
+    }
+
+    /**
+     * Issues a credential for a table. If one is already active it is revoked first, in the same
+     * transaction (rotation). The caller must already have checked MANAGE_TABLES.
+     */
+    @Transactional
+    public IssuedQrResponse issueForTable(TenantContext tenant, DiningTable table) {
+        if (!table.getHotelId().equals(tenant.hotelId())) {
+            throw DomainException.notFound("Table"); // defence in depth: never issue across hotels
+        }
         if (!table.isActive()) {
             throw DomainException.conflict("This table is deactivated");
         }
 
-        revokeActive(tenant.hotelId(), tableId, tenant.userId());
+        revokeActive(tenant.hotelId(), table.getId(), tenant.userId());
 
         String plainToken = Tokens.newToken();
+        String scanUrl = props.customerBaseUrl() + "/t/" + plainToken;
         Instant now = clock.instant();
         try {
-            QrCredential saved = credentials.save(new QrCredential(tenant.hotelId(), tableId,
+            QrCredential saved = credentials.save(new QrCredential(tenant.hotelId(), table.getId(),
                     Tokens.sha256(plainToken), tenant.userId(), now));
-            return new IssuedQrResponse(saved.getId(), tableId, plainToken,
-                    props.customerBaseUrl() + "/t/" + plainToken, now);
+            return new IssuedQrResponse(saved.getId(), table.getId(), plainToken, scanUrl,
+                    images.pngDataUri(scanUrl), now);
         } catch (DuplicateKeyException e) {
             // Two managers issued at the same moment; the unique index let only one through.
             throw DomainException.conflict("The QR code was changed at the same time, please try again");
