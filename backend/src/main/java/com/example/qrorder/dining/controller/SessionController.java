@@ -51,4 +51,10 @@ public class SessionController {
                                         @PathVariable("sessionId") String sessionId){
         return lifecycle.reopen(tenant, sessionId);
     }
+
+    @PostMapping("/{sessionId}/close")
+    public SessionDetailResponse close(@CurrentTenant TenantContext tenant,
+                                       @PathVariable("sessionId") String sessionId) {
+        return lifecycle.close(tenant, sessionId);
+    }
 }

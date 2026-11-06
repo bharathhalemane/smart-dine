@@ -9,6 +9,8 @@ import com.example.qrorder.dining.repository.DiningSessionRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
 import java.time.Clock;
+import java.time.Instant;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -19,13 +21,18 @@ import org.springframework.stereotype.Service;
 @Service
 public class SessionLifecycleService {
 
+    private static final int MAX_CLOSE_ATTEMPTS = 3;
+
     private final MongoTemplate mongo;
     private final DiningSessionRepository sessions;
+    private final ObjectProvider<SessionCloseCheck> closeChecks;
     private final Clock clock;
 
-    public SessionLifecycleService(MongoTemplate mongo, DiningSessionRepository sessions, Clock clock) {
+    public SessionLifecycleService(MongoTemplate mongo, DiningSessionRepository sessions,
+                                   ObjectProvider<SessionCloseCheck> closeChecks, Clock clock) {
         this.mongo = mongo;
         this.sessions = sessions;
+        this.closeChecks = closeChecks;
         this.clock = clock;
     }
 
@@ -41,10 +48,27 @@ public class SessionLifecycleService {
                 transition(tenant, sessionId, SessionStatus.BILL_REQUESTED, SessionStatus.OPEN));
     }
 
-    /**
-     * Compare-and-set on the status: "move to next, but only if it is still expected". Of two
-     * simultaneous requests exactly one matches the query; the other sees null and gets a 409.
-     */
+    /** Clears the table: closes the session from OPEN or BILL_REQUESTED. */
+    public SessionDetailResponse close(TenantContext tenant, String sessionId) {
+        tenant.require(Permission.CLEAR_TABLE);
+
+        for (int attempt = 0; attempt < MAX_CLOSE_ATTEMPTS; attempt++) {
+            DiningSession current = sessions.findByIdAndHotelId(sessionId, tenant.hotelId())
+                    .orElseThrow(() -> DomainException.notFound("Session"));
+            if (current.getStatus() == SessionStatus.CLOSED) {
+                throw DomainException.invalidTransition("This session is already closed");
+            }
+            closeChecks.orderedStream().forEach(check -> check.check(tenant, current));
+
+            DiningSession closed = compareAndSet(tenant, sessionId, current.getStatus(), SessionStatus.CLOSED);
+            if (closed != null) {
+                return SessionDetailResponse.from(closed);
+            }
+            // The status changed between our read and our update (e.g. the bill was requested): read again.
+        }
+        throw DomainException.conflict("The session keeps changing, please try again");
+    }
+
     DiningSession transition(TenantContext tenant, String sessionId, SessionStatus expected, SessionStatus next) {
         if (!expected.canTransitionTo(next)) {
             throw new IllegalStateException("Transition " + expected + " -> " + next + " is not in the state machine");
@@ -69,5 +93,26 @@ public class SessionLifecycleService {
                 .orElseThrow(() -> DomainException.notFound("Session"));
         throw DomainException.invalidTransition(
                 "Cannot move a session from " + current.getStatus() + " to " + next);
+    }
+
+    private DiningSession compareAndSet(TenantContext tenant, String sessionId,
+                                        SessionStatus expected, SessionStatus next) {
+        if (!expected.canTransitionTo(next)) {
+            throw new IllegalStateException("Transition " + expected + " -> " + next + " is not in the state machine");
+        }
+        Instant now = clock.instant();
+
+        Query query = Query.query(Criteria.where("id").is(sessionId)
+                .and("hotelId").is(tenant.hotelId())
+                .and("status").is(expected));
+        Update update = new Update()
+                .set("status", next)
+                .push("statusHistory", new StatusChange(expected, next, tenant.userId(), now))
+                .inc("version", 1); // keeps @Version honest for any later save()
+        if (next == SessionStatus.CLOSED) {
+            update.set("active", false).set("closedAt", now); // frees the table for the next scan
+        }
+
+        return mongo.findAndModify(query, update, FindAndModifyOptions.options().returnNew(true), DiningSession.class);
     }
 }
