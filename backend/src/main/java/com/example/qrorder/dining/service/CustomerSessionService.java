@@ -37,6 +37,7 @@ public class CustomerSessionService {
                 .filter(DiningSession::isActive)
                 .orElseThrow(() -> new DomainException(ErrorCode.SESSION_ENDED,
                         "This table session has ended. Scan the QR code again"));
+        hotels.findActive(customer.getHotelId()).orElseThrow(() -> new DomainException(ErrorCode.SESSION_ENDED, "This restaurant is not available"));
         return new CustomerContext(customer.getId(), customer.getHotelId(), customer.getTableId(),
                 session.getTableNumber(), session.getId(), session.getStatus(), customer.getNumber(), customer.getDisplayName());
     }
