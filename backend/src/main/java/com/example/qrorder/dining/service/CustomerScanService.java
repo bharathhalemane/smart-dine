@@ -17,10 +17,13 @@ public class CustomerScanService {
     private final DiningSessionService diningSessions;
     private final CustomerSessionRepository customers;
     private final Clock clock;
+    private final CustomerNumbering numbering;
 
-    public CustomerScanService(DiningSessionService diningSessions, CustomerSessionRepository customers, Clock clock) {
+    public CustomerScanService(DiningSessionService diningSessions, CustomerSessionRepository customers,
+            CustomerNumbering numbering,Clock clock) {
         this.diningSessions = diningSessions;
         this.customers = customers;
+        this.numbering = numbering;
         this.clock = clock;
     }
 
@@ -39,8 +42,9 @@ public class CustomerScanService {
         }
 
         String token = Tokens.newToken();
+        int number = numbering.next(session.getId());
         customers.save(new CustomerSession(session.getHotelId(), session.getTableId(), session.getId(),
-                Tokens.sha256(token), clock.instant()));
+                Tokens.sha256(token), number, clock.instant()));
         return new Outcome(scanned.response(), token);
     }
 }

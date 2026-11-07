@@ -7,5 +7,8 @@ import com.example.qrorder.dining.model.SessionStatus;
  * from here, never from anything the client sends.
  */
 public record CustomerContext(String customerSessionId, String hotelId, String tableId, String tableNumber,
-                              String diningSessionId, SessionStatus sessionStatus) {
+                              String diningSessionId, SessionStatus sessionStatus, int number, String displayName) {
+    public String label(){
+        return CustomerNames.label(number, displayName);
+    }
 }

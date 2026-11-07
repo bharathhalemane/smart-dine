@@ -38,14 +38,28 @@ public class CustomerSessionService {
                 .orElseThrow(() -> new DomainException(ErrorCode.SESSION_ENDED,
                         "This table session has ended. Scan the QR code again"));
         return new CustomerContext(customer.getId(), customer.getHotelId(), customer.getTableId(),
-                session.getTableNumber(), session.getId(), session.getStatus());
+                session.getTableNumber(), session.getId(), session.getStatus(), customer.getNumber(), customer.getDisplayName());
     }
 
     public CustomerMeResponse me(String cookieToken) {
+        return respond(resolve(cookieToken));
+    }
+
+    public CustomerMeResponse updateName(String cookieToken, String rawName) {
         CustomerContext context = resolve(cookieToken);
+        String name = CustomerNames.clean(rawName);
+        CustomerSession customer = customers.findById(context.customerSessionId())
+                .orElseThrow(CustomerSessionService::unauthenticated);
+        customer.setDisplayName(name);
+        customers.save(customer);
+        return respond(resolve(cookieToken));
+    }
+
+    private CustomerMeResponse respond(CustomerContext context) {
         PublicHotelInfo hotel = hotels.findActive(context.hotelId())
                 .orElseThrow(() -> new DomainException(ErrorCode.SESSION_ENDED, "This restaurant is not available"));
-        return new CustomerMeResponse(hotel.name(), context.tableNumber(), context.sessionStatus());
+        return new CustomerMeResponse(hotel.name(), context.tableNumber(), context.sessionStatus(),
+                context.number(), context.displayName(), context.label());
     }
 
     private static DomainException unauthenticated() {

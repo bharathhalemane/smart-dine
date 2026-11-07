@@ -3,10 +3,14 @@ package com.example.qrorder.dining.controller;
 import com.example.qrorder.dining.dto.CustomerMeResponse;
 import com.example.qrorder.dining.service.CustomerCookies;
 import com.example.qrorder.dining.service.CustomerSessionService;
+import com.example.qrorder.dining.dto.SetNameRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,5 +29,12 @@ public class CustomerController {
     public ResponseEntity<CustomerMeResponse> me(
             @CookieValue(name = CustomerCookies.NAME, required = false) String cookie) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.me(cookie));
+    }
+
+    @PutMapping("/me/name")
+    public ResponseEntity<CustomerMeResponse> setName(
+            @CookieValue(name = CustomerCookies.NAME, required = false) String cookie,
+            @Valid @RequestBody SetNameRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.updateName(cookie, request.name()));
     }
 }
