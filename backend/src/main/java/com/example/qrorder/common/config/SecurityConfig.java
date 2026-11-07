@@ -69,6 +69,7 @@ public class SecurityConfig {
                                 "/api/v1/invitations/accept-new").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/scan").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/customer/**").permitAll()
                         .anyRequest().authenticated());
         return http.build();
     }

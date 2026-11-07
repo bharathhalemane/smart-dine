@@ -67,6 +67,10 @@ app:
     link-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
   qr:
     customer-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  customer:
+    cookie-secure: false      # true in production (HTTPS)
+    cookie-same-site: Lax
+    cookie-max-age-seconds: 43200
 
 
 springdoc:

@@ -38,14 +38,19 @@ public class DiningSessionService implements ActiveSessionGuard {
 
     public record OpenResult(DiningSession session, boolean opened) {}
 
-    /** A customer scanned a QR. Every failure looks the same: the caller learns nothing about why. */
+    public record ScannedTable(ScanResponse response, DiningSession session) {}
+
     public ScanResponse scan(String token) {
+        return scanTable(token).response();
+    }
+
+    public ScannedTable scanTable(String token) {
         ResolvedTable table = qrResolver.resolve(token).orElseThrow(DiningSessionService::invalidQr);
         PublicHotelInfo hotel = hotels.findActive(table.hotelId()).orElseThrow(DiningSessionService::invalidQr);
 
         OpenResult result = openOrJoin(table.hotelId(), table.tableId(), table.number());
-        return new ScanResponse(hotel.name(), table.number(), table.section(),
-                result.session().getStatus(), result.opened());
+        return new ScannedTable(new ScanResponse(hotel.name(), table.number(), table.section(),
+                result.session().getStatus(), result.opened()), result.session());
     }
 
     /**
