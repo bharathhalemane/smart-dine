@@ -2,6 +2,8 @@ package com.example.qrorder.menu.model;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.List;
+import java.util.ArrayList;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
@@ -27,6 +29,9 @@ public class MenuItem {
     private boolean available = true;
     private Instant createdAt;
     private Instant updatedAt;
+
+    private List<MenuVariant> variants = new ArrayList<>();
+    private List<AddOnGroup> addOnGroups = new ArrayList<>();
 
     @Version
     private Long version;
@@ -59,6 +64,8 @@ public class MenuItem {
     public boolean isAvailable() { return available; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public List<MenuVariant> getVariants() { return variants == null ? List.of() : List.copyOf(variants); }
+    public List<AddOnGroup> getAddOnGroups() { return addOnGroups == null ? List.of() : List.copyOf(addOnGroups); }
 
     public void setName(String name) {
         this.name = name;
@@ -73,4 +80,6 @@ public class MenuItem {
     public void setActive(boolean active) { this.active = active; }
     public void setAvailable(boolean available) { this.available = available; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+    public void setVariants(List<MenuVariant> variants) { this.variants = new ArrayList<>(variants); }
+    public void setAddOnGroups(List<AddOnGroup> addOnGroups) { this.addOnGroups = new ArrayList<>(addOnGroups); }
 }

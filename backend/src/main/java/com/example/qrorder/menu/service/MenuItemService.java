@@ -7,6 +7,7 @@ import com.example.qrorder.menu.dto.ItemResponse;
 import com.example.qrorder.menu.dto.UpdateItemRequest;
 import com.example.qrorder.menu.model.MenuCategory;
 import com.example.qrorder.menu.model.MenuItem;
+import com.example.qrorder.menu.model.MenuVariant;
 import com.example.qrorder.menu.repository.MenuCategoryRepository;
 import com.example.qrorder.menu.repository.MenuItemRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
@@ -112,6 +113,10 @@ public class MenuItemService {
             item.setDescription(trimToNull(request.description()));
         }
         if (request.priceMinor() != null) {
+            long lowestDelta = item.getVariants().stream().mapToLong(MenuVariant::priceDeltaMinor).min().orElse(0);
+            if (request.priceMinor() + lowestDelta < 0) {
+                throw DomainException.conflict("That base price would make a variant's price negative");
+            }
             item.setPriceMinor(request.priceMinor());
         }
         if (request.diet() != null) {
