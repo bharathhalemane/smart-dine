@@ -32,6 +32,7 @@ public class Order {
     private String currency;
     private List<OrderLine> lines = new ArrayList<>();
     private List<OrderStatusChange> statusHistory = new ArrayList<>();
+    private List<OrderLineReport> lineReports = new ArrayList<>();
     private long subtotalMinor;
     private String idempotencyKey;
     private String requestHash;
@@ -80,6 +81,10 @@ public class Order {
     public List<OrderLine> getLines() { return lines == null ? List.of() : List.copyOf(lines); }
     public List<OrderStatusChange> getStatusHistory(){
         return statusHistory == null ? List.of() : List.copyOf(statusHistory);
+    }
+    public Long getVersion() { return version; }
+    public List<OrderLineReport> getLineReports() {
+        return lineReports == null ? List.of() : List.copyOf(lineReports);
     }
     public long getSubtotalMinor() { return subtotalMinor; }
     public String getIdempotencyKey() { return idempotencyKey; }
