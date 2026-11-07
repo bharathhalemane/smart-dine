@@ -30,9 +30,10 @@ public class DiningSession {
     private String tableNumber; // snapshot, so history reads correctly even if the table is renamed
     private SessionStatus status = SessionStatus.OPEN;
     private boolean active = true;
+    private List<StatusChange> statusHistory = new ArrayList<>();
+    private int orderCount;
     private Instant openedAt;
     private Instant closedAt;
-    private List<StatusChange> statusHistory = new ArrayList<>();
 
     @Version
     private Long version;
@@ -54,6 +55,7 @@ public class DiningSession {
     public String getTableNumber() { return tableNumber; }
     public SessionStatus getStatus() { return status; }
     public boolean isActive() { return active; }
+    public int getOrderCount() {return orderCount;}
     public Instant getOpenedAt() { return openedAt; }
     public Instant getClosedAt() { return closedAt; }
     public List<StatusChange> getStatusHistory() {

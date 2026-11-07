@@ -8,9 +8,11 @@ import com.example.qrorder.ordering.dto.CartLine;
 import com.example.qrorder.ordering.dto.PricedCart;
 import com.example.qrorder.ordering.model.Order;
 import com.example.qrorder.ordering.repository.OrderRepository;
+import com.mongodb.MongoException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -19,17 +21,22 @@ import org.springframework.stereotype.Service;
 public class OrderPlacementService {
 
     private static final Pattern KEY_FORMAT = Pattern.compile("[A-Za-z0-9_-]{16,64}");
+    private static final int MAX_ATTEMPTS = 10;
+    private static final int WRITE_CONFLICT = 112;
+    private static final int NO_SUCH_TRANSACTION  = 251;
 
     /** created is false when this call returned an order that an earlier identical request had made. */
     public record Placement(Order order, boolean created) {}
 
     private final OrderRepository orders;
     private final OrderPricingService pricing;
+    private final OrderWriter writer;
     private final Clock clock;
 
-    public OrderPlacementService(OrderRepository orders, OrderPricingService pricing, Clock clock) {
+    public OrderPlacementService(OrderRepository orders, OrderPricingService pricing,OrderWriter writer, Clock clock) {
         this.orders = orders;
         this.pricing = pricing;
+        this.writer = writer;
         this.clock = clock;
     }
 
@@ -40,7 +47,21 @@ public class OrderPlacementService {
         }
         String requestHash = OrderRequestHash.of(cart);
 
-        // A retry of an order that already exists returns that order, even if the table has since moved on.
+        for (int attempt = 1; ;attempt++) {
+            try {
+                return placeOnce(customer, idempotencyKey, cart, requestHash);
+            } catch (RuntimeException e) {
+                if (!isTransientConflict(e)) {
+                    throw e;
+                }
+                if (attempt >= MAX_ATTEMPTS) {
+                    throw DomainException.conflict("The table is busy, please try again");
+                }
+                pause(attempt);
+            }
+        }
+    }
+    private Placement placeOnce(CustomerContext customer, String idempotencyKey, List<CartLine> cart, String requestHash){
         Optional<Order> existing = orders.findByCustomerSessionIdAndIdempotencyKey(
                 customer.customerSessionId(), idempotencyKey);
         if (existing.isPresent()) {
@@ -57,7 +78,7 @@ public class OrderPlacementService {
                 customer.tableNumber(), customer.customerSessionId(), customer.label(), priced.currency(),
                 priced.lines(), priced.subtotalMinor(), idempotencyKey, requestHash, clock.instant());
         try {
-            return new Placement(orders.save(order), true);
+            return new Placement(writer.insertIntoOpenSession(order), true);
         } catch (DuplicateKeyException race) {
             // A concurrent request with the same key won the insert. Return its order.
             Order winner = orders.findByCustomerSessionIdAndIdempotencyKey(customer.customerSessionId(),
@@ -71,5 +92,21 @@ public class OrderPlacementService {
             throw DomainException.conflict("This Idempotency-Key was already used for a different order");
         }
         return new Placement(existing, false);
+    }
+
+    static boolean isTransientConflict(Throwable error){
+        for(Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()){
+            if(t instanceof MongoException mongo && (mongo.hasErrorLabel(MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL) || mongo.getCode() == WRITE_CONFLICT || mongo.getCode() == NO_SUCH_TRANSACTION)) return true;
+        }
+        return false;
+    }
+
+    private static void pause(int attempt){
+        try{
+            Thread.sleep(ThreadLocalRandom.current().nextLong(5, 25) * attempt);
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            throw DomainException.conflict("Interrupted, please try again");
+        }
     }
 }
