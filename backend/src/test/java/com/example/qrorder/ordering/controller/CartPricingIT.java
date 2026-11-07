@@ -223,7 +223,7 @@ class CartPricingIT extends AbstractIntegrationTest {
                 List.of(new OrderOption("extras", "Extras", "cheese", "Extra cheese", 3000)),
                 21000L, 2, 42000L, "less cheese");
         Order saved = orders.save(new Order(hotelId, "ds-1", "t-1", "T1", "cust-1", "Guest 1", "INR",
-                List.of(pizzaLine), 42000L, Instant.now()));
+                List.of(pizzaLine), 42000L, null, null, Instant.now()));
 
         Order read = orders.findById(saved.getId()).orElseThrow();
 
