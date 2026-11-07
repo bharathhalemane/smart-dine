@@ -14,4 +14,6 @@ public interface MenuItemRepository extends MongoRepository<MenuItem, String> {
     List<MenuItem> findByHotelIdAndCategoryId(String hotelId, String categoryId);
 
     boolean existsByHotelIdAndCategoryIdAndNameKey(String hotelId, String categoryId, String nameKey);
+
+    List<MenuItem> findByHotelIdAndActiveTrue(String hotelId);
 }
