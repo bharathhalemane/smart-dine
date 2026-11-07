@@ -31,6 +31,7 @@ public class Order {
     private OrderStatus status = OrderStatus.PENDING;
     private String currency;
     private List<OrderLine> lines = new ArrayList<>();
+    private List<OrderStatusChange> statusHistory = new ArrayList<>();
     private long subtotalMinor;
     private String idempotencyKey;
     private String requestHash;
@@ -42,6 +43,13 @@ public class Order {
     private Long version;
 
     protected Order() {}
+
+    public Order(String hotelId, String diningSessionId, String tableId, String tableNumber,
+                 String customerSessionId, String customerLabel, String currency, List<OrderLine> lines,
+                 long subtotalMinor, Instant createdAt) {
+        this(hotelId, diningSessionId, tableId, tableNumber, customerSessionId, customerLabel, currency, lines,
+                subtotalMinor, null, null, createdAt);
+    }
 
     public Order(String hotelId, String diningSessionId, String tableId, String tableNumber,
                  String customerSessionId, String customerLabel, String currency, List<OrderLine> lines,
@@ -70,10 +78,14 @@ public class Order {
     public OrderStatus getStatus() { return status; }
     public String getCurrency() { return currency; }
     public List<OrderLine> getLines() { return lines == null ? List.of() : List.copyOf(lines); }
+    public List<OrderStatusChange> getStatusHistory(){
+        return statusHistory == null ? List.of() : List.copyOf(statusHistory);
+    }
     public long getSubtotalMinor() { return subtotalMinor; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getRequestHash() { return requestHash; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getCancelledAt() { return cancelledAt; }
     public String getCancelledBy() { return cancelledBy; }
+
 }
