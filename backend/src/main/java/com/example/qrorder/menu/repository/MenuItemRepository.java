@@ -3,6 +3,7 @@ package com.example.qrorder.menu.repository;
 import com.example.qrorder.menu.model.MenuItem;
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface MenuItemRepository extends MongoRepository<MenuItem, String> {
@@ -16,4 +17,6 @@ public interface MenuItemRepository extends MongoRepository<MenuItem, String> {
     boolean existsByHotelIdAndCategoryIdAndNameKey(String hotelId, String categoryId, String nameKey);
 
     List<MenuItem> findByHotelIdAndActiveTrue(String hotelId);
+
+    List<MenuItem> findByHotelIdAndIdIn(String hotelId, Collection<String> ids);
 }
