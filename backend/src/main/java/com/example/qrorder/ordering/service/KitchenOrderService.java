@@ -35,4 +35,73 @@ public class KitchenOrderService {
         return orders.findFirst200ByHotelIdAndStatusInOrderByCreatedAtAscIdAsc(tenant.hotelId(), parse(statusFilter))
                 .stream().map(KitchenOrderResponse::from).toList();
     }
+
+    public KitchenOrderResponse accept(TenantContext tenant, String orderId) {
+        return move(tenant, orderId, OrderStatus.PENDING, OrderStatus.ACCEPTED);
+    }
+
+    public KitchenOrderResponse start(TenantContext tenant, String orderId) {
+        return move(tenant, orderId, OrderStatus.ACCEPTED, OrderStatus.PREPARING);
+    }
+
+    public KitchenOrderResponse ready(TenantContext tenant, String orderId) {
+        return move(tenant, orderId, OrderStatus.PREPARING, OrderStatus.READY);
+    }
+
+    public KitchenOrderResponse deliver(TenantContext tenant, String orderId) {
+        return move(tenant, orderId, OrderStatus.READY, OrderStatus.DELIVERED);
+    }
+
+    private KitchenOrderResponse move(TenantContext tenant, String orderId, OrderStatus expected, OrderStatus next) {
+        OrderTransitionPolicy.requireStaff(tenant, expected, next);
+
+        Optional<Order> moved = transitions.transition(
+                Criteria.where("id").is(orderId).and("hotelId").is(tenant.hotelId()),
+                expected, next, OrderActor.staff(tenant.userId()), null);
+        if (moved.isPresent()) {
+            return KitchenOrderResponse.from(moved.get());
+        }
+
+        Order current = orders.findByIdAndHotelId(orderId, tenant.hotelId())
+                .orElseThrow(() -> DomainException.notFound("Order"));
+        if (current.getStatus() == next) {
+            return KitchenOrderResponse.from(current); // someone else (or a double-tap) already did it
+        }
+
+        if (current.getStatus() == OrderStatus.CANCELLED) {
+            throw DomainException.invalidTransition("This order has been cancelled");
+        }
+
+        throw DomainException.invalidTransition("This order is " + current.getStatus().name().toLowerCase()
+                + ", so it cannot be moved to " + next.name().toLowerCase());
+    }
+
+    private static Set<OrderStatus> parse(List<String> filter) {
+        if (filter == null || filter.isEmpty()) {
+            return OPEN;
+        }
+        Set<OrderStatus> result = EnumSet.noneOf(OrderStatus.class);
+        for (String value : filter) {
+            for (String part : value.split(",")) {
+                if (part.isBlank()) {
+                    continue;
+                }
+                OrderStatus status;
+                try {
+                    status = OrderStatus.valueOf(part.strip().toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    throw invalid("Unknown status '" + part.strip() + "'");
+                }
+                if (!OPEN.contains(status)) {
+                    throw invalid("The queue only lists PENDING, ACCEPTED, PREPARING and READY orders");
+                }
+                result.add(status);
+            }
+        }
+        return result.isEmpty() ? OPEN : result;
+    }
+
+    private static DomainException invalid(String message) {
+        return new DomainException(ErrorCode.VALIDATION_FAILED, message);
+    }
 }

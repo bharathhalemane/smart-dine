@@ -7,11 +7,11 @@ import com.example.qrorder.ordering.model.OrderStatusChange;
 import java.time.Instant;
 import java.util.List;
 
-public record KitchenOrderResponse(String id, OrderStatus, status, String tableNumber, String customerLabel,
+public record KitchenOrderResponse(String id, OrderStatus status, String tableNumber, String customerLabel,
                                    List<OrderLine> lines, Instant createdAt, Instant statusSince){
 
     public static KitchenOrderResponse from(Order o){
-        List<OrderStatusChange> history = 0.getStatusHistory();
+        List<OrderStatusChange> history = o.getStatusHistory();
         Instant since = history.isEmpty() ? o.getCreatedAt() : history.get(history.size() - 1).at();
         return new KitchenOrderResponse(o.getId(), o.getStatus(), o.getTableNumber(), o.getCustomerLabel(),
                 o.getLines(), o.getCreatedAt(), since);

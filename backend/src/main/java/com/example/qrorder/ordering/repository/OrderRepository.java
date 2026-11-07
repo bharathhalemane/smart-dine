@@ -4,6 +4,7 @@ import com.example.qrorder.ordering.model.Order;
 import com.example.qrorder.ordering.model.OrderStatus;
 import java.util.Optional;
 import java.util.List;
+import java.util.Collection;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface OrderRepository extends MongoRepository<Order, String> {
