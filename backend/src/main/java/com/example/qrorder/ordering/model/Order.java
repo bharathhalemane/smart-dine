@@ -35,6 +35,8 @@ public class Order {
     private String idempotencyKey;
     private String requestHash;
     private Instant createdAt;
+    private Instant cancelledAt;
+    private String cancelledBy;
 
     @Version
     private Long version;
@@ -72,4 +74,6 @@ public class Order {
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getRequestHash() { return requestHash; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getCancelledAt() { return cancelledAt; }
+    public String getCancelledBy() { return cancelledBy; }
 }
