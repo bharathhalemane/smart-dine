@@ -22,4 +22,6 @@ public interface OrderRepository extends MongoRepository<Order, String> {
 
     long countByDiningSessionIdAndStatusIn(String diningSessionId, Collection<OrderStatus> statuses);
 
+    List<Order> findByDiningSessionIdOrderByCreatedAtAscIdAsc(String diningSessionId);
+
 }
