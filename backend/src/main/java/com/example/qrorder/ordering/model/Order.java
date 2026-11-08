@@ -38,6 +38,7 @@ public class Order {
     private String requestHash;
     private Instant createdAt;
     private Instant cancelledAt;
+    private String cancelReason;
     private String cancelledBy;
 
     @Version
@@ -82,6 +83,7 @@ public class Order {
     public List<OrderStatusChange> getStatusHistory(){
         return statusHistory == null ? List.of() : List.copyOf(statusHistory);
     }
+    public String getCancelReason() { return cancelReason; }
     public Long getVersion() { return version; }
     public List<OrderLineReport> getLineReports() {
         return lineReports == null ? List.of() : List.copyOf(lineReports);

@@ -41,6 +41,9 @@ public class OrderTransitionService{
                 .inc("version", 1);
         if(next == OrderStatus.CANCELLED){
             update.set("cancelledAt", now).set("cancelledBy", actor.type());
+            if(reason != null){
+                update.set("cancelReason", reason);
+            }
         }
 
         return Optional.ofNullable(mongo.findAndModify(query, update,FindAndModifyOptions.options().returnNew(true), Order.class));

@@ -9,10 +9,11 @@ import java.util.List;
 /** What the customer gets back. No internal ids beyond the order's own. */
 public record OrderResponse(String id, OrderStatus status, String tableNumber, String customerLabel,
                             String currency, List<OrderLine> lines, long subtotalMinor, Instant createdAt,
-                            Instant cancelledAt) {
+                            Instant cancelledAt, String cancelledBy, String cancelReason) {
 
     public static OrderResponse from(Order o) {
         return new OrderResponse(o.getId(), o.getStatus(), o.getTableNumber(), o.getCustomerLabel(),
-                o.getCurrency(), o.getLines(), o.getSubtotalMinor(), o.getCreatedAt(), o.getCancelledAt());
+                o.getCurrency(), o.getLines(), o.getSubtotalMinor(), o.getCreatedAt(), o.getCancelledAt(),
+                o.getCancelledBy(), o.getCancelReason());
     }
 }

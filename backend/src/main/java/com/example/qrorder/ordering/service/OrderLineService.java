@@ -118,6 +118,7 @@ public class OrderLineService {
             update.set("status", OrderStatus.CANCELLED)
                     .set("cancelledAt", now)
                     .set("cancelledBy", OrderActor.STAFF)
+                    .set("cancelReason", "All items unavailale")
                     .push("statusHistory", new OrderStatusChange(order.getStatus(), OrderStatus.CANCELLED,
                             OrderActor.STAFF, tenant.userId(), "All items unavailable", now));
         }
