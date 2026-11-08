@@ -7,7 +7,10 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-/** The bill of one dining session. Exactly one per session (the unique index). All amounts are in paise. */
+/**
+ * The bill of one dining session. Exactly one per session (the unique index). All amounts are in paise.
+ * Lines and totals are derived from the orders and the hotel's settings; discounts are staff input.
+ */
 @Document("bills")
 @CompoundIndex(name = "hotel_created", def = "{'hotelId': 1, 'createdAt': -1}")
 public class Bill {
@@ -24,8 +27,16 @@ public class Bill {
     private String tableNumber;
     private String currency;
     private List<BillLine> lines;
+    private List<BillDiscount> discounts;
     private long subtotalMinor;
+    private long discountMinor;
+    private long serviceChargeMinor;
+    private long taxMinor;
     private long totalMinor;
+    private String taxName;
+    private int taxRateBps;
+    private boolean taxInclusive;
+    private int serviceChargeBps;
     private int ordersBilled;
     private int ordersInProgress;
     private int revision;
@@ -41,8 +52,16 @@ public class Bill {
     public String getTableNumber() { return tableNumber; }
     public String getCurrency() { return currency; }
     public List<BillLine> getLines() { return lines == null ? List.of() : lines; }
+    public List<BillDiscount> getDiscounts() { return discounts == null ? List.of() : discounts; }
     public long getSubtotalMinor() { return subtotalMinor; }
+    public long getDiscountMinor() { return discountMinor; }
+    public long getServiceChargeMinor() { return serviceChargeMinor; }
+    public long getTaxMinor() { return taxMinor; }
     public long getTotalMinor() { return totalMinor; }
+    public String getTaxName() { return taxName; }
+    public int getTaxRateBps() { return taxRateBps; }
+    public boolean isTaxInclusive() { return taxInclusive; }
+    public int getServiceChargeBps() { return serviceChargeBps; }
     public int getOrdersBilled() { return ordersBilled; }
     public int getOrdersInProgress() { return ordersInProgress; }
     public int getRevision() { return revision; }
@@ -50,8 +69,12 @@ public class Bill {
     public Instant getUpdatedAt() { return updatedAt; }
 
     /** True when a fresh calculation would produce exactly what is stored. */
-    public boolean sameContentAs(List<BillLine> otherLines, long otherSubtotal, int otherBilled, int otherInProgress) {
-        return subtotalMinor == otherSubtotal && ordersBilled == otherBilled && ordersInProgress == otherInProgress
-                && getLines().equals(otherLines);
+    public boolean matches(BillSnapshot s) {
+        return subtotalMinor == s.subtotalMinor() && discountMinor == s.discountMinor()
+                && serviceChargeMinor == s.serviceChargeMinor() && taxMinor == s.taxMinor()
+                && totalMinor == s.totalMinor() && ordersBilled == s.ordersBilled()
+                && ordersInProgress == s.ordersInProgress() && taxRateBps == s.taxRateBps()
+                && taxInclusive == s.taxInclusive() && serviceChargeBps == s.serviceChargeBps()
+                && java.util.Objects.equals(taxName, s.taxName()) && getLines().equals(s.lines());
     }
 }
