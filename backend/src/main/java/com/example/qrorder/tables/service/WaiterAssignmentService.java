@@ -147,6 +147,15 @@ public class WaiterAssignmentService {
         return list(tenant).stream().filter(r -> tenant.userId().equals(r.waiterUserId())).toList();
     }
 
+    /** table id → id of the waiter currently responsible. Assignments to people who no longer serve are left out. */
+    public Map<String, String> responsibleWaiters(String hotelId) {
+        Set<String> valid = directory.userIdsWith(hotelId, Permission.DELIVER_ORDERS);
+        return assignments.findByHotelId(hotelId).stream()
+                .filter(a -> valid.contains(a.getWaiterUserId()))
+                .collect(Collectors.toMap(TableAssignment::getTableId, TableAssignment::getWaiterUserId,
+                        (a, b) -> a));
+    }
+
     // ---------- helpers ----------
 
     private TableAssignment upsert(TenantContext tenant, String tableId, String userId) {
