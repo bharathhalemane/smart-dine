@@ -6,10 +6,12 @@ import com.example.qrorder.identity.service.AccountSummary;
 import com.example.qrorder.ordering.dto.WaiterOrderActionResponse;
 import com.example.qrorder.ordering.model.Order;
 import com.example.qrorder.ordering.model.OrderStatus;
+import com.example.qrorder.tables.model.WaiterEventType;
 import com.example.qrorder.ordering.repository.OrderRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
 import com.example.qrorder.tenancy.service.StaffDirectory;
+import com.example.qrorder.tables.service.WaiterAuditService;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,15 +33,17 @@ public class WaiterPickupService {
     private final OrderTransitionService transitions;
     private final StaffDirectory directory;
     private final AccountService accounts;
+    private final WaiterAuditService audit;
     private final Clock clock;
 
     public WaiterPickupService(MongoTemplate mongo, OrderRepository orders, OrderTransitionService transitions,
-                               StaffDirectory directory, AccountService accounts, Clock clock) {
+                               StaffDirectory directory, AccountService accounts, WaiterAuditService audit, Clock clock) {
         this.mongo = mongo;
         this.orders = orders;
         this.transitions = transitions;
         this.directory = directory;
         this.accounts = accounts;
+        this.audit=audit;
         this.clock = clock;
     }
 
@@ -50,6 +54,7 @@ public class WaiterPickupService {
 
         Order claimed = tryClaim(tenant, orderId, null);
         if (claimed != null) {
+            recordPickup(tenant, claimed, null);
             return view(claimed);
         }
 
@@ -64,6 +69,7 @@ public class WaiterPickupService {
         if (holder != null && !activeWaiters(tenant).contains(holder)) {
             Order takenOver = tryClaim(tenant, orderId, holder); // the holder no longer works as a waiter here
             if (takenOver != null) {
+                recordPickup(tenant, takenOver, holder);
                 return view(takenOver);
             }
             throw DomainException.conflict("This order was just picked up, please try again");
@@ -86,10 +92,12 @@ public class WaiterPickupService {
         } else {
             scope = scope.and("pickedUpByUserId").is(tenant.userId());
         }
-        Order released = mongo.findAndModify(Query.query(scope),
+        Order before = mongo.findAndModify(Query.query(scope),
                 new Update().unset("pickedUpByUserId").unset("pickedUpAt").inc("version", 1),
-                FindAndModifyOptions.options().returnNew(true), Order.class);
-        if (released != null) {
+                FindAndModifyOptions.options().returnNew(false), Order.class);
+        if (before != null) {
+            audit.record(tenant.hotelId(), WaiterEventType.DROPPED, before.getTableId(), before.getTableNumber(),
+                    before.getId(), tenant.userId(), before.getPickedUpByUserId(), null, null);
             return;
         }
 
@@ -146,6 +154,10 @@ public class WaiterPickupService {
     }
 
     // ---------- helpers ----------
+    private void recordPickup(TenantContext tenant, Order order, String previousHolder) {
+        audit.record(tenant.hotelId(), WaiterEventType.PICKED_UP, order.getTableId(), order.getTableNumber(),
+                order.getId(), tenant.userId(), previousHolder, tenant.userId(), null);
+    }
 
     private Order tryClaim(TenantContext tenant, String orderId, String expectedHolder) {
         Criteria scope = Criteria.where("id").is(orderId).and("hotelId").is(tenant.hotelId())

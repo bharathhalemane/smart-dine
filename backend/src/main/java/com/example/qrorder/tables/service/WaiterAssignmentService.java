@@ -7,6 +7,7 @@ import com.example.qrorder.identity.service.AccountSummary;
 import com.example.qrorder.tables.dto.TableResponse;
 import com.example.qrorder.tables.dto.WaiterAssignmentResponse;
 import com.example.qrorder.tables.model.TableAssignment;
+import com.example.qrorder.tables.model.WaiterEventType;
 import com.example.qrorder.tables.repository.TableAssignmentRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
@@ -36,15 +37,17 @@ public class WaiterAssignmentService {
     private final TableService tables;
     private final StaffDirectory directory;
     private final AccountService accounts;
+    private final WaiterAuditService audit;
     private final Clock clock;
 
     public WaiterAssignmentService(TableAssignmentRepository assignments, MongoTemplate mongo, TableService tables,
-                                   StaffDirectory directory, AccountService accounts, Clock clock) {
+                                   StaffDirectory directory, AccountService accounts, WaiterAuditService audit,Clock clock) {
         this.assignments = assignments;
         this.mongo = mongo;
         this.tables = tables;
         this.directory = directory;
         this.accounts = accounts;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -52,19 +55,33 @@ public class WaiterAssignmentService {
     public WaiterAssignmentResponse assign(TenantContext tenant, String tableId, String userId) {
         tenant.require(Permission.MANAGE_TABLES);
         TableResponse table = activeTable(tenant, tableId);
-        boolean eligible = directory.findActive(tenant.hotelId(), userId)
-                .map(staff -> staff.permissions().contains(Permission.DELIVER_ORDERS)).orElse(false);
-        if (!eligible) {
+        if (!canServe(tenant.hotelId(), userId)) {
             throw new DomainException(ErrorCode.VALIDATION_FAILED, "That person cannot be assigned to tables");
         }
-        return row(table, upsert(tenant, tableId, userId), nameOf(userId));
+        String previous = assignments.findByTableId(tableId)
+                .filter(a -> a.getHotelId().equals(tenant.hotelId()))
+                .map(TableAssignment::getWaiterUserId).orElse(null);
+        TableAssignment saved = upsert(tenant, tableId, userId);
+        if (!userId.equals(previous)) {
+            audit.record(tenant.hotelId(), WaiterEventType.ASSIGNED, tableId, table.number(), null,
+                    tenant.userId(), previous, userId, null);
+        }
+        return row(table, saved, nameOf(userId));
     }
 
     /** Clears the assignment. Repeating it is harmless. */
     public void unassign(TenantContext tenant, String tableId) {
         tenant.require(Permission.MANAGE_TABLES);
-        mongo.remove(Query.query(Criteria.where("tableId").is(tableId).and("hotelId").is(tenant.hotelId())),
-                TableAssignment.class);
+        String previous = assignments.findByTableId(tableId)
+                .filter(a -> a.getHotelId().equals(tenant.hotelId()))
+                .map(TableAssignment::getWaiterUserId).orElse(null);
+        long deleted = mongo.remove(
+                Query.query(Criteria.where("tableId").is(tableId).and("hotelId").is(tenant.hotelId())),
+                TableAssignment.class).getDeletedCount();
+        if (deleted > 0) {
+            audit.record(tenant.hotelId(), WaiterEventType.UNASSIGNED, tableId, numberOf(tenant, tableId), null,
+                    tenant.userId(), previous, null, null);
+        }
     }
 
     /**
@@ -78,6 +95,8 @@ public class WaiterAssignmentService {
         try {
             TableAssignment created = assignments.insert(
                     new TableAssignment(tenant.hotelId(), tableId, me, me, clock.instant()));
+            audit.record(tenant.hotelId(), WaiterEventType.CLAIMED, tableId, table.number(), null, me, null, me,
+                    null);
             return row(table, created, nameOf(me));
         } catch (DuplicateKeyException taken) {
             TableAssignment existing = assignments.findByTableId(tableId)
@@ -99,6 +118,8 @@ public class WaiterAssignmentService {
             if (takenOver == null) {
                 throw DomainException.conflict("This table was just taken, please try again");
             }
+            audit.record(tenant.hotelId(), WaiterEventType.TAKEN_OVER, tableId, table.number(), null, me,
+                    existing.getWaiterUserId(), me, null);
             return row(table, takenOver, nameOf(me));
         }
     }
@@ -109,12 +130,15 @@ public class WaiterAssignmentService {
         long removed = mongo.remove(Query.query(Criteria.where("tableId").is(tableId)
                 .and("hotelId").is(tenant.hotelId()).and("waiterUserId").is(tenant.userId())),
                 TableAssignment.class).getDeletedCount();
-        if (removed == 0) {
-            Optional<TableAssignment> other = assignments.findByTableId(tableId)
-                    .filter(a -> a.getHotelId().equals(tenant.hotelId()));
-            if (other.isPresent()) {
-                throw DomainException.conflict("This table is assigned to someone else");
-            }
+        if (removed > 0) {
+            audit.record(tenant.hotelId(), WaiterEventType.RELEASED, tableId, numberOf(tenant, tableId), null,
+                    tenant.userId(), tenant.userId(), null, null);
+            return;
+        }
+        Optional<TableAssignment> other = assignments.findByTableId(tableId)
+                .filter(a -> a.getHotelId().equals(tenant.hotelId()));
+        if (other.isPresent()) {
+            throw DomainException.conflict("This table is assigned to someone else");
         }
     }
 
@@ -157,6 +181,34 @@ public class WaiterAssignmentService {
     }
 
     // ---------- helpers ----------
+    public TableResponse activeTable(TenantContext tenant, String tableId) {
+        return tables.list(tenant, false).stream()
+                .filter(t -> t.id().equals(tableId))
+                .findFirst()
+                .orElseThrow(() -> DomainException.notFound("Table"));
+    }
+
+    public String currentHolder(String hotelId, String tableId) {
+        return assignments.findByTableId(tableId)
+                .filter(a -> a.getHotelId().equals(hotelId))
+                .map(TableAssignment::getWaiterUserId)
+                .filter(id -> directory.userIdsWith(hotelId, Permission.DELIVER_ORDERS).contains(id))
+                .orElse(null);
+    }
+
+    public boolean canServe(String hotelId, String userId) {
+        return directory.findActive(hotelId, userId)
+                .map(staff -> staff.permissions().contains(Permission.DELIVER_ORDERS)).orElse(false);
+    }
+
+    public boolean handOver(String hotelId, String tableId, String fromUserId, String toUserId, String decidedBy) {
+        return mongo.findAndModify(
+                Query.query(Criteria.where("tableId").is(tableId).and("hotelId").is(hotelId)
+                        .and("waiterUserId").is(fromUserId)),
+                new Update().set("waiterUserId", toUserId).set("assignedByUserId", decidedBy)
+                        .set("assignedAt", clock.instant()),
+                FindAndModifyOptions.options().returnNew(true), TableAssignment.class) != null;
+    }
 
     private TableAssignment upsert(TenantContext tenant, String tableId, String userId) {
         for (int attempt = 0; ; attempt++) {
@@ -174,11 +226,11 @@ public class WaiterAssignmentService {
         }
     }
 
-    private TableResponse activeTable(TenantContext tenant, String tableId) {
+    private String numberOf(TenantContext tenant, String tableId) {
         return tables.list(tenant, false).stream()
                 .filter(t -> t.id().equals(tableId))
-                .findFirst()
-                .orElseThrow(() -> DomainException.notFound("Table"));
+                .map(TableResponse::number)
+                .findFirst().orElse(null);
     }
 
     private String nameOf(String userId) {
