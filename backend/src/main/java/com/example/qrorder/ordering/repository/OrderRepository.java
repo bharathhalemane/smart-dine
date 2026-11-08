@@ -18,4 +18,8 @@ public interface OrderRepository extends MongoRepository<Order, String> {
 
     List<Order> findFirst200ByHotelIdAndStatusInOrderByCreatedAtAscIdAsc(String hotelId, Collection<OrderStatus> statuses);
 
+    List<Order> findByHotelIdAndStatusIn(String hotelId, Collection<OrderStatus> statuses);
+
+    long countByDiningSessionIdAndStatusIn(String diningSessionId, Collection<OrderStatus> statuses);
+
 }
