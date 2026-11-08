@@ -65,29 +65,40 @@ public class WaiterTaskService {
             }
         }
 
-        Set<String> waiterIds = new HashSet<>();
+        Set<String> personIds = new HashSet<>();
         for (Order order : visible) {
             String waiter = waiterByTable.get(order.getTableId());
             if (waiter != null) {
-                waiterIds.add(waiter);
+                personIds.add(waiter);
+            }
+            if (order.getPickedUpByUserId() != null) {
+                personIds.add(order.getPickedUpByUserId());
             }
         }
-        Map<String, AccountSummary> people = accounts.summaries(waiterIds);
+
+        Map<String, AccountSummary> people = accounts.summaries(personIds);
 
         List<WaiterTaskResponse> tasks = new ArrayList<>();
         for (Order order : visible) {
             Instant readyAt = readyAt(order);
             String waiter = waiterByTable.get(order.getTableId());
-            AccountSummary person = waiter == null ? null : people.get(waiter);
+            String carrier = order.getPickedUpByUserId();
             List<OrderLine> lines = order.getLines().stream().filter(OrderLine::stillOrdered).toList();
             tasks.add(new WaiterTaskResponse(order.getId(), order.getTableId(), order.getTableNumber(),
                     order.getCustomerLabel(), lines, readyAt,
                     Math.max(0, Duration.between(readyAt, now).getSeconds()),
-                    waiter, person == null ? null : person.name(),
-                    tenant.userId().equals(waiter), waiter == null));
+                    waiter, nameOf(people, waiter),
+                    tenant.userId().equals(waiter), waiter == null,
+                    carrier, nameOf(people, carrier), order.getPickedUpAt(),
+                    tenant.userId().equals(carrier)));
         }
         tasks.sort(Comparator.comparing(WaiterTaskResponse::readyAt).thenComparing(WaiterTaskResponse::orderId));
         return tasks;
+    }
+
+    private static String nameOf(Map<String, AccountSummary> people, String userId) {
+        AccountSummary person = userId == null ? null : people.get(userId);
+        return person == null ? null : person.name();
     }
 
     /** When the order most recently became READY; the creation time if its history says nothing. */

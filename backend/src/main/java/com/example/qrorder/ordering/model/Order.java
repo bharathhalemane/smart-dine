@@ -40,6 +40,8 @@ public class Order {
     private Instant cancelledAt;
     private String cancelReason;
     private String cancelledBy;
+    private String pickedUpByUserId;
+    private Instant pickedUpAt;
 
     @Version
     private Long version;
@@ -94,5 +96,7 @@ public class Order {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getCancelledAt() { return cancelledAt; }
     public String getCancelledBy() { return cancelledBy; }
+    public String getPickedUpByUserId() { return pickedUpByUserId; }
+    public Instant getPickedUpAt() { return pickedUpAt; }
 
 }

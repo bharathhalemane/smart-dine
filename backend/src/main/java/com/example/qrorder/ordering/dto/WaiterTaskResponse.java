@@ -10,5 +10,7 @@ import java.util.List;
  */
 public record WaiterTaskResponse(String orderId, String tableId, String tableNumber, String customerLabel,
                                  List<OrderLine> lines, Instant readyAt, long waitingSeconds,
-                                 String waiterUserId, String waiterName, boolean mine, boolean unassigned) {
+                                 String waiterUserId, String waiterName, boolean mine, boolean unassigned,
+                                 String pickedUpByUserId, String pickedUpByName, Instant pickedUpAt,
+                                 boolean carriedByMe) {
 }
