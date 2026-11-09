@@ -44,12 +44,13 @@ public class OnlinePaymentWebhookService {
     private final PaymentWriter writer;
     private final MongoTemplate mongo;
     private final ObjectMapper json;
+    private final OrderReleaseService releaser;
     private final Clock clock;
 
     public OnlinePaymentWebhookService(ProviderConfigService providerConfigs, PaymentProviders providers,
                                        OnlinePaymentRepository attempts, DiningSessionRepository sessions,
                                        BillService bills, PaymentWriter writer, MongoTemplate mongo,
-                                       ObjectMapper json, Clock clock) {
+                                       ObjectMapper json, Clock clock, OrderReleaseService releaser) {
         this.providerConfigs = providerConfigs;
         this.providers = providers;
         this.attempts = attempts;
@@ -59,6 +60,7 @@ public class OnlinePaymentWebhookService {
         this.mongo = mongo;
         this.json = json;
         this.clock = clock;
+        this.releaser = releaser;
     }
 
     public void handle(String hookKey, byte[] rawBody, String signature) {
@@ -123,11 +125,13 @@ public class OnlinePaymentWebhookService {
             try {
                 writer.record(entry, bill.getId(), paid);
                 markCaptured(attempt, providerPaymentId);
+                releaser.releaseQuietly(session);
                 return;
             } catch (PaymentWriter.StaleBillException stale) {
                 // the bill moved since we read it: look again
             } catch (DuplicateKeyException alreadyCounted) {
                 markCaptured(attempt, providerPaymentId); // this very payment was counted by an earlier delivery
+                releaser.releaseQuietly(session); // and make sure the orders it paid for were released
                 return;
             } catch (RuntimeException e) {
                 if (!PaymentService.isTransient(e)) {

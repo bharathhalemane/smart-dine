@@ -574,6 +574,30 @@ class OnlinePaymentIT extends AbstractIntegrationTest {
         assertThat(paidOnBill()).isEqualTo(27000);
     }
 
+    @Test
+    void aCapturedOnlinePaymentReleasesAHeldOrder() throws Exception {
+        call(put("/api/v1/hotels/" + hotelId + "/payments/settings"), "owner@example.com",
+                "{\"enabledMethods\":[\"CASH\",\"ONLINE\"],\"partialPaymentsAllowed\":true,\"paymentTiming\":\"BEFORE_FOOD\"}")
+                .andExpect(status().isOk());
+        String itemId = items.findAll().get(0).getId();
+        MvcResult placed = mvc.perform(post("/api/v1/customer/orders").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lines\":[{\"itemId\":\"%s\",\"quantity\":1}]}".formatted(itemId))
+                        .cookie(new Cookie("qr_customer", anita)).header("Idempotency-Key", UUID.randomUUID().toString()))
+                .andExpect(status().isCreated()).andReturn();
+        String heldId = JsonPath.read(placed.getResponse().getContentAsString(), "$.id");
+        assertThat(orders.findById(heldId).orElseThrow().getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
+
+        MvcResult options = mvc.perform(get("/api/v1/customer/payment-options")
+                .cookie(new Cookie("qr_customer", anita))).andExpect(status().isOk()).andReturn();
+        long due = ((Number) JsonPath.read(options.getResponse().getContentAsString(), "$.amountDueMinor")).longValue();
+        String attemptId = startOk(due);
+
+        signedWebhook(event("payment.captured", orderIdOf(attemptId), "pay_held", due, "INR")).andExpect(status().isOk());
+
+        assertThat(orders.findById(heldId).orElseThrow().getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(paidOnBill()).isEqualTo(due);
+    }
+
     // ---------- staff cannot touch online money by hand ----------
 
     @Test

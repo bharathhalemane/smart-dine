@@ -40,16 +40,18 @@ public class PaymentService {
     private final BillService bills;
     private final BillRepository billRepository;
     private final PaymentSettingsService settings;
+    private final OrderReleaseService releaser;
     private final Clock clock;
 
     public PaymentService(PaymentRepository payments, PaymentWriter writer, DiningSessionRepository sessions,
                           BillService bills, BillRepository billRepository, PaymentSettingsService settings,
-                          Clock clock) {
+                          OrderReleaseService releaser, Clock clock) {
         this.payments = payments;
         this.writer = writer;
         this.sessions = sessions;
         this.bills = bills;
         this.billRepository = billRepository;
+        this.releaser = releaser;
         this.settings = settings;
         this.clock = clock;
     }
@@ -98,7 +100,9 @@ public class PaymentService {
                     clean(request.reference()), clean(request.note()), clean(request.payerLabel()), tenant.userId(),
                     clock.instant(), idempotencyKey, requestHash);
             try {
-                return new Recorded(receipt(writer.record(payment, bill.getId(), paid)), true);
+                Payment saved = writer.record(payment, bill.getId(), paid);
+                releaser.releaseQuietly(session); // a payment may now cover orders that were being held
+                return new Recorded(receipt(saved), true);
             } catch (PaymentWriter.StaleBillException stale) {
                 // the bill moved between our read and our write: look at it again
             } catch (DuplicateKeyException race) {

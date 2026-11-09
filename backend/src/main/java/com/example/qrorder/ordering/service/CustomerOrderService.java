@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /** What a diner may do with their own orders. Always scoped by the customer session from the cookie. */
@@ -20,10 +21,13 @@ public class CustomerOrderService {
 
     private final OrderRepository orders;
     private final OrderTransitionService transitions;
+    private final ObjectProvider<OrderCancelListener> cancelListeners;
 
-    public CustomerOrderService(OrderRepository orders, OrderTransitionService transitions) {
+    public CustomerOrderService(OrderRepository orders,
+                                ObjectProvider<OrderCancelListener> cancelListeners,OrderTransitionService transitions) {
         this.orders = orders;
         this.transitions = transitions;
+        this.cancelListeners = cancelListeners;
     }
 
     public List<OrderResponse> list(CustomerContext customer) {
@@ -50,7 +54,10 @@ public class CustomerOrderService {
                     current.getStatus(), OrderStatus.CANCELLED, OrderActor.customer(customer.customerSessionId()),
                     null);
             if (cancelled.isPresent()) {
-                return OrderResponse.from(cancelled.get());
+                Order done = cancelled.get();
+                cancelListeners.orderedStream()
+                        .forEach(listener -> listener.afterCancelled(done.getHotelId(), done.getDiningSessionId()));
+                return OrderResponse.from(done);
             }
             // it moved between our read and our update (a payment released it, or the kitchen accepted it): look again
         }

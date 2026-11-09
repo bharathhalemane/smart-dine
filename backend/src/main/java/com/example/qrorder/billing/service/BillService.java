@@ -33,6 +33,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
@@ -51,16 +52,19 @@ public class BillService {
     private final HotelLookupService hotels;
     private final BillingSettingsService settings;
     private final PaymentSettingsService paymentSettings;
+    private final ObjectProvider<OrderReleaseService> releaser;
     private final MongoTemplate mongo;
     private final Clock clock;
 
     public BillService(BillRepository bills, DiningSessionRepository sessions, OrderRepository orders,
                        HotelLookupService hotels, BillingSettingsService settings,
-                       PaymentSettingsService paymentSettings, MongoTemplate mongo, Clock clock) {
+                       PaymentSettingsService paymentSettings, ObjectProvider<OrderReleaseService> releaser,
+                       MongoTemplate mongo, Clock clock) {
         this.bills = bills;
         this.sessions = sessions;
         this.orders = orders;
         this.hotels = hotels;
+        this.releaser = releaser;
         this.paymentSettings = paymentSettings;
         this.settings = settings;
         this.mongo = mongo;
@@ -119,7 +123,9 @@ public class BillService {
         if (updated == null) {
             throw DomainException.conflict("A bill can carry at most " + MAX_DISCOUNTS + " discounts");
         }
-        return view(session, current(session), true);
+        Bill result = current(session);
+        releaser.ifAvailable(r -> r.releaseQuietly(session)); // a discount can make an earlier payment enough
+        return view(session, result, true);
     }
 
     public BillResponse removeDiscount(TenantContext tenant, String sessionId, String discountId) {

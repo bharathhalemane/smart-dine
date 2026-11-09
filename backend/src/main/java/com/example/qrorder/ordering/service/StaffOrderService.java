@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Service;
 
@@ -28,12 +29,15 @@ public class StaffOrderService {
 
     private final OrderRepository orders;
     private final OrderTransitionService transitions;
+    private final ObjectProvider<OrderCancelListener> cancelListeners;
     private final AccountService accounts;
 
-    public StaffOrderService(OrderRepository orders, OrderTransitionService transitions, AccountService accounts) {
+    public StaffOrderService(OrderRepository orders, OrderTransitionService transitions, AccountService accounts,
+                             ObjectProvider<OrderCancelListener> cancelListeners) {
         this.orders = orders;
         this.transitions = transitions;
         this.accounts = accounts;
+        this.cancelListeners = cancelListeners;
     }
 
     public StaffOrderDetailResponse detail(TenantContext tenant, String orderId) {
@@ -68,7 +72,10 @@ public class StaffOrderService {
                     Criteria.where("id").is(orderId).and("hotelId").is(tenant.hotelId()),
                     current.getStatus(), OrderStatus.CANCELLED, OrderActor.staff(tenant.userId()), reason);
             if (moved.isPresent()) {
-                return toDetail(moved.get());
+                Order done = moved.get();
+                cancelListeners.orderedStream()
+                        .forEach(listener -> listener.afterCancelled(done.getHotelId(), done.getDiningSessionId()));
+                return toDetail(done);
             }
         }
         throw DomainException.conflict("The order keeps changing, please try again");
