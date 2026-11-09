@@ -5,5 +5,6 @@ public enum OnlinePaymentStatus {
     CAPTURED,      // paid and counted on the bill
     FAILED,        // the provider reported a failed attempt
     NEEDS_REVIEW,  // money was captured but could not be counted: a refund or decision is due
-    RESOLVED       // staff dealt with a NEEDS_REVIEW entry
+    RESOLVED ,
+    EXPIRED    // staff dealt with a NEEDS_REVIEW entry
 }

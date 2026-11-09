@@ -142,7 +142,8 @@ public class OnlinePaymentWebhookService {
     private void markCaptured(OnlinePayment attempt, String providerPaymentId) {
         mongo.updateFirst(
                 Query.query(Criteria.where("id").is(attempt.getId())
-                        .and("status").in(OnlinePaymentStatus.CREATED, OnlinePaymentStatus.NEEDS_REVIEW)),
+                        .and("status").in(OnlinePaymentStatus.CREATED, OnlinePaymentStatus.NEEDS_REVIEW,
+                                OnlinePaymentStatus.EXPIRED)),
                 new Update().set("status", OnlinePaymentStatus.CAPTURED).set("providerPaymentId", providerPaymentId)
                         .set("updatedAt", clock.instant()),
                 OnlinePayment.class);
@@ -151,7 +152,8 @@ public class OnlinePaymentWebhookService {
     private void review(OnlinePayment attempt, String providerPaymentId, String reason) {
         mongo.updateFirst(
                 Query.query(Criteria.where("id").is(attempt.getId())
-                        .and("status").in(OnlinePaymentStatus.CREATED, OnlinePaymentStatus.NEEDS_REVIEW)),
+                        .and("status").in(OnlinePaymentStatus.CREATED, OnlinePaymentStatus.NEEDS_REVIEW,
+                                OnlinePaymentStatus.EXPIRED)),
                 new Update().set("status", OnlinePaymentStatus.NEEDS_REVIEW)
                         .set("providerPaymentId", providerPaymentId).set("reviewReason", reason)
                         .set("updatedAt", clock.instant()),
