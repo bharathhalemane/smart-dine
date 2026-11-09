@@ -4,5 +4,6 @@ package com.example.qrorder.billing.model;
 public enum PaymentMethod {
     CASH,
     UPI,
-    CARD
+    CARD,
+    ONLINE
 }

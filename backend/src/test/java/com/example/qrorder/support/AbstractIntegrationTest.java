@@ -20,6 +20,7 @@ public abstract class AbstractIntegrationTest{
     @DynamicPropertySource
     static void mongoProps(DynamicPropertyRegistry registry){
         registry.add("spring.data.mongodb.uri", MONGO::getReplicaSetUrl);
+        registry.add("app.payments.encryption-key", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
     }
 
     @MockitoBean

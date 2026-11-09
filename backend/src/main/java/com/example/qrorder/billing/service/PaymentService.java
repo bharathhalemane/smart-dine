@@ -3,6 +3,7 @@ package com.example.qrorder.billing.service;
 import com.example.qrorder.billing.dto.PaymentReceipt;
 import com.example.qrorder.billing.dto.PaymentResponse;
 import com.example.qrorder.billing.dto.RecordPaymentRequest;
+import com.example.qrorder.billing.model.PaymentMethod;
 import com.example.qrorder.billing.model.Bill;
 import com.example.qrorder.billing.model.Payment;
 import com.example.qrorder.billing.model.PaymentSettings;
@@ -60,6 +61,9 @@ public class PaymentService {
         tenant.require(Permission.TAKE_PAYMENT);
         if (idempotencyKey == null || !KEY_FORMAT.matcher(idempotencyKey).matches()) {
             throw validation("Send an Idempotency-Key header of 16 to 64 characters: letters, digits, _ or -");
+        }
+        if (request.method() == PaymentMethod.ONLINE) {
+            throw validation("Online payments are taken through the pay link, not recorded by staff");
         }
         DiningSession session = load(tenant, sessionId);
         String requestHash = hash(request);
@@ -128,7 +132,10 @@ public class PaymentService {
         if (!session.isActive()) {
             throw DomainException.invalidTransition("This table has been cleared, so its payments can no longer be changed");
         }
-        findPayment(tenant, sessionId, paymentId);
+        Payment target = findPayment(tenant, sessionId, paymentId);
+        if (target.getMethod() == PaymentMethod.ONLINE) {
+            throw DomainException.conflict("Online payments are refunded from the payment provider, not voided here");
+        }
 
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
             try {

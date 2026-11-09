@@ -70,6 +70,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/scan").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**").permitAll()
                         .requestMatchers("/api/v1/customer/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**").permitAll()
                         .anyRequest().authenticated());
         return http.build();
     }

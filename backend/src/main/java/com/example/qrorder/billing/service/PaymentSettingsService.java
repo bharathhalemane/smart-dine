@@ -28,12 +28,15 @@ public class PaymentSettingsService {
     private static final Pattern UPI_ID = Pattern.compile("^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$");
 
     private final PaymentSettingsRepository repository;
+    private final ProviderConfigService providers;
     private final MongoTemplate mongo;
     private final Clock clock;
 
-    public PaymentSettingsService(PaymentSettingsRepository repository, MongoTemplate mongo, Clock clock) {
+    public PaymentSettingsService(PaymentSettingsRepository repository, MongoTemplate mongo, Clock clock,
+                                  ProviderConfigService providers) {
         this.repository = repository;
         this.mongo = mongo;
+        this.providers = providers;
         this.clock = clock;
     }
 
@@ -58,6 +61,9 @@ public class PaymentSettingsService {
         }
         if (methods.contains(PaymentMethod.UPI) && (upiId == null || payeeName == null)) {
             throw validation("To accept UPI, give a UPI id and the name it is registered under");
+        }
+        if (methods.contains(PaymentMethod.ONLINE) && !providers.configured(tenant.hotelId())) {
+            throw validation("Connect the payment provider before turning on online payments");
         }
 
         List<PaymentMethod> stored = List.copyOf(methods);
