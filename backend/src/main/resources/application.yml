@@ -75,6 +75,8 @@ app:
     encryption-key: ${APP_PAYMENTS_ENCRYPTION_KEY:}   # base64 of 32 random bytes; required to store provider keys
     razorpay:
       base-url: https://api.razorpay.com
+  held-orders:
+      sweep-enabled: true
 
 
 springdoc:
