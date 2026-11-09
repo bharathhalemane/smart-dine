@@ -13,7 +13,8 @@ import java.util.List;
 public record BillResponse(String id, String sessionId, SessionStatus sessionStatus, String tableNumber,
                            String currency, List<BillLine> lines, List<GuestTotal> guests, long subtotalMinor,
                            long discountMinor, long serviceChargeMinor, long taxMinor, long totalMinor,
-                           String taxName, int taxRateBps, boolean taxInclusive, int serviceChargeBps,
-                           List<DiscountView> discounts, int ordersBilled, int ordersInProgress, boolean complete,
-                           int revision, Instant updatedAt) {
+                           long paidMinor, long balanceMinor, long overpaidMinor, String taxName, int taxRateBps,
+                           boolean taxInclusive, int serviceChargeBps, List<DiscountView> discounts,
+                           int ordersBilled, int ordersInProgress, boolean complete, int revision,
+                           Instant updatedAt) {
 }

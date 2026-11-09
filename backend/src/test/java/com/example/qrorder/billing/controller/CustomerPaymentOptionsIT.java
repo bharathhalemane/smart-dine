@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.qrorder.billing.model.PaymentMethod;
 import com.example.qrorder.billing.model.PaymentSettings;
+import com.example.qrorder.billing.model.Bill;
 import com.example.qrorder.billing.repository.BillRepository;
 import com.example.qrorder.billing.repository.PaymentSettingsRepository;
 import com.example.qrorder.common.security.Tokens;
@@ -190,5 +191,19 @@ class CustomerPaymentOptionsIT extends AbstractIntegrationTest {
     void aDinerNeedsAValidCookie() throws Exception {
         options(null).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         options("not-a-real-token").andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void afterAPartPaymentTheLinkAsksForTheBalanceOnly() throws Exception {
+        useUpi();
+        deliverEverything();
+        options(anita).andExpect(status().isOk()); // makes the bill exist
+
+        mongo.updateFirst(new Query(), new Update().set("paidMinor", 10000L), Bill.class);
+
+        options(anita)
+                .andExpect(jsonPath("$.amountDueMinor").value(17000))
+                .andExpect(jsonPath("$.upiLink")
+                        .value("upi://pay?pa=asha@okbank&pn=Spice%20Garden&am=170.00&cu=INR&tn=Table%20T1"));
     }
 }

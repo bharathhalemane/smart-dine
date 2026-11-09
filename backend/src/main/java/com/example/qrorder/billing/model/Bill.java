@@ -33,6 +33,7 @@ public class Bill {
     private long serviceChargeMinor;
     private long taxMinor;
     private long totalMinor;
+    private long paidMinor;
     private String taxName;
     private int taxRateBps;
     private boolean taxInclusive;
@@ -58,6 +59,7 @@ public class Bill {
     public long getServiceChargeMinor() { return serviceChargeMinor; }
     public long getTaxMinor() { return taxMinor; }
     public long getTotalMinor() { return totalMinor; }
+    public long getPaidMinor() { return paidMinor; }
     public String getTaxName() { return taxName; }
     public int getTaxRateBps() { return taxRateBps; }
     public boolean isTaxInclusive() { return taxInclusive; }

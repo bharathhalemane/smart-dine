@@ -79,6 +79,11 @@ public class BillService {
         return view(session, current(session), false);
     }
 
+    /** The session's bill as it is right now: re-derived while live, frozen once cleared. Used by payments. */
+    public Bill currentBill(DiningSession session) {
+        return current(session);
+    }
+
     // ---------- discounts ----------
 
     public BillResponse addDiscount(TenantContext tenant, String sessionId, AddDiscountRequest request) {
@@ -91,6 +96,15 @@ public class BillService {
         }
         if (request.type() == DiscountType.FLAT && request.value() > bill.getSubtotalMinor()) {
             throw validation("The discount is larger than the bill");
+        }
+
+        List<BillDiscount> prospective = new ArrayList<>(bill.getDiscounts());
+        prospective.add(new BillDiscount("new", request.type(), request.value(), "pending", tenant.userId(),
+                clock.instant()));
+        long newTotal = BillMath.compute(bill.getSubtotalMinor(), prospective, bill.getTaxRateBps(),
+                bill.isTaxInclusive(), bill.getServiceChargeBps()).totalMinor();
+        if (newTotal < bill.getPaidMinor()) {
+            throw DomainException.conflict("This discount would bring the bill below what has already been paid");
         }
 
         // "discounts.9" not existing means there are at most 9 now, so after this push there are at most 10
@@ -224,7 +238,9 @@ public class BillService {
 
         return new BillResponse(bill.getId(), session.getId(), session.getStatus(), bill.getTableNumber(),
                 bill.getCurrency(), bill.getLines(), guests, bill.getSubtotalMinor(), bill.getDiscountMinor(),
-                bill.getServiceChargeMinor(), bill.getTaxMinor(), bill.getTotalMinor(), bill.getTaxName(),
+                bill.getServiceChargeMinor(), bill.getTaxMinor(), bill.getTotalMinor(), bill.getPaidMinor(),
+                Math.max(0, bill.getTotalMinor() - bill.getPaidMinor()),
+                Math.max(0, bill.getPaidMinor() - bill.getTotalMinor()), bill.getTaxName(),
                 bill.getTaxRateBps(), bill.isTaxInclusive(), bill.getServiceChargeBps(), discounts,
                 bill.getOrdersBilled(), bill.getOrdersInProgress(), bill.getOrdersInProgress() == 0,
                 bill.getRevision(), bill.getUpdatedAt());

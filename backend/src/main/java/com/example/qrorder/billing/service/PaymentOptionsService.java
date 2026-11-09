@@ -24,7 +24,7 @@ public class PaymentOptionsService {
         PaymentSettings s = settings.effective(customer.hotelId());
 
         boolean upi = s.accepts(PaymentMethod.UPI);
-        long due = bill.totalMinor(); // from 10.4 on: what is still owed after payments
+        long due = bill.balanceMinor(); // what is still owed after payments
         String link = upi
                 ? UpiLinks.build(s.getUpiId(), s.getPayeeName(), bill.currency(), due, "Table " + bill.tableNumber())
                 : null;
