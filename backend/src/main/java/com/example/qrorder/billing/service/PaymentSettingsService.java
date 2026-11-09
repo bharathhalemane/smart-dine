@@ -4,9 +4,12 @@ import com.example.qrorder.billing.dto.PaymentSettingsResponse;
 import com.example.qrorder.billing.dto.UpdatePaymentSettingsRequest;
 import com.example.qrorder.billing.model.PaymentMethod;
 import com.example.qrorder.billing.model.PaymentSettings;
+import com.example.qrorder.billing.model.PaymentTiming;
 import com.example.qrorder.billing.repository.PaymentSettingsRepository;
 import com.example.qrorder.common.error.DomainException;
 import com.example.qrorder.common.error.ErrorCode;
+import com.example.qrorder.ordering.model.OrderStatus;
+import com.example.qrorder.ordering.repository.OrderRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
 import java.time.Clock;
@@ -28,19 +31,21 @@ public class PaymentSettingsService {
     private static final Pattern UPI_ID = Pattern.compile("^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$");
 
     private final PaymentSettingsRepository repository;
-    private final ProviderConfigService providers;
     private final MongoTemplate mongo;
     private final Clock clock;
+    private final ProviderConfigService providers;
+    private final OrderRepository orders;
 
     public PaymentSettingsService(PaymentSettingsRepository repository, MongoTemplate mongo, Clock clock,
-                                  ProviderConfigService providers) {
+                                  ProviderConfigService providers, OrderRepository orders) {
         this.repository = repository;
         this.mongo = mongo;
-        this.providers = providers;
         this.clock = clock;
+        this.providers = providers;
+        this.orders = orders;
     }
 
-    /** What applies to this hotel right now: its own settings, or "cash only". */
+    /** What applies to this hotel right now: its own settings, or "cash only, pay after the meal". */
     public PaymentSettings effective(String hotelId) {
         return repository.findByHotelId(hotelId).orElseGet(() -> PaymentSettings.defaults(hotelId));
     }
@@ -66,6 +71,14 @@ public class PaymentSettingsService {
             throw validation("Connect the payment provider before turning on online payments");
         }
 
+        PaymentSettings current = effective(tenant.hotelId());
+        PaymentTiming timing = request.paymentTiming() == null ? current.getPaymentTiming() : request.paymentTiming();
+        if (timing != current.getPaymentTiming()
+                && orders.existsByHotelIdAndStatus(tenant.hotelId(), OrderStatus.AWAITING_PAYMENT)) {
+            throw DomainException.conflict(
+                    "Some orders are still waiting for payment. Settle or cancel them before changing when guests pay");
+        }
+
         List<PaymentMethod> stored = List.copyOf(methods);
         for (int attempt = 0; ; attempt++) {
             try {
@@ -76,6 +89,7 @@ public class PaymentSettingsService {
                                 .set("upiId", upiId)
                                 .set("payeeName", payeeName)
                                 .set("partialPaymentsAllowed", request.partialPaymentsAllowed())
+                                .set("paymentTiming", timing)
                                 .set("updatedByUserId", tenant.userId())
                                 .set("updatedAt", clock.instant()),
                         FindAndModifyOptions.options().upsert(true).returnNew(true), PaymentSettings.class);

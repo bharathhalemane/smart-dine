@@ -50,16 +50,18 @@ public class BillService {
     private final OrderRepository orders;
     private final HotelLookupService hotels;
     private final BillingSettingsService settings;
+    private final PaymentSettingsService paymentSettings;
     private final MongoTemplate mongo;
     private final Clock clock;
 
     public BillService(BillRepository bills, DiningSessionRepository sessions, OrderRepository orders,
-                       HotelLookupService hotels, BillingSettingsService settings, MongoTemplate mongo,
-                       Clock clock) {
+                       HotelLookupService hotels, BillingSettingsService settings,
+                       PaymentSettingsService paymentSettings, MongoTemplate mongo, Clock clock) {
         this.bills = bills;
         this.sessions = sessions;
         this.orders = orders;
         this.hotels = hotels;
+        this.paymentSettings = paymentSettings;
         this.settings = settings;
         this.mongo = mongo;
         this.clock = clock;
@@ -161,7 +163,8 @@ public class BillService {
             return existing; // the table was cleared: the bill is frozen
         }
         BillCalculator.Computed computed = BillCalculator.compute(
-                orders.findByDiningSessionIdOrderByCreatedAtAscIdAsc(session.getId()));
+                orders.findByDiningSessionIdOrderByCreatedAtAscIdAsc(session.getId()),
+                paymentSettings.effective(session.getHotelId()).isPayBeforeFood());
         BillingSettings rates = settings.effective(session.getHotelId());
         BillMath.Breakdown breakdown = BillMath.compute(computed.subtotalMinor(),
                 existing == null ? List.of() : existing.getDiscounts(), rates.getTaxRateBps(),

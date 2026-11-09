@@ -24,4 +24,6 @@ public interface OrderRepository extends MongoRepository<Order, String> {
 
     List<Order> findByDiningSessionIdOrderByCreatedAtAscIdAsc(String diningSessionId);
 
+    boolean existsByHotelIdAndStatus(String hotelId, OrderStatus status);
+
 }

@@ -4,6 +4,7 @@ import java.util.EnumSet;
 import java.util.Set;
 /** Phase 8 adds the transition rules; for now orders are only ever created PENDING. */
 public enum OrderStatus {
+    AWAITING_PAYMENT,
     PENDING,
     ACCEPTED,
     PREPARING,
@@ -13,6 +14,7 @@ public enum OrderStatus {
 
     public Set<OrderStatus> next() {
         return switch (this) {
+            case AWAITING_PAYMENT -> EnumSet.of(PENDING, CANCELLED);
             case PENDING -> EnumSet.of(ACCEPTED,CANCELLED);
             case ACCEPTED -> EnumSet.of(PREPARING, CANCELLED);
             case PREPARING -> EnumSet.of(READY, CANCELLED);

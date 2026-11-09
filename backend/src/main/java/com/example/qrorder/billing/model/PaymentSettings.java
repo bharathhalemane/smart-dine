@@ -22,6 +22,7 @@ public class PaymentSettings {
     private String payeeName;
     private boolean partialPaymentsAllowed;
     private String updatedByUserId;
+    private PaymentTiming paymentTiming;
     private Instant updatedAt;
 
     protected PaymentSettings() {}
@@ -54,6 +55,14 @@ public class PaymentSettings {
             return List.of(PaymentMethod.CASH);
         }
         return List.copyOf(EnumSet.copyOf(enabledMethods));
+    }
+    /** When guests pay. Hotels with no choice recorded pay after the meal. */
+    public PaymentTiming getPaymentTiming() {
+        return paymentTiming == null ? PaymentTiming.AFTER_MEAL : paymentTiming;
+    }
+
+    public boolean isPayBeforeFood() {
+        return getPaymentTiming() == PaymentTiming.BEFORE_FOOD;
     }
 
     public boolean accepts(PaymentMethod method) {

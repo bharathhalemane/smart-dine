@@ -36,22 +36,25 @@ public class CustomerOrderService {
     }
 
     public OrderResponse cancel(CustomerContext customer, String orderId) {
-        find(customer, orderId); // 404 for anything that is not this customer's own order
-
-        Optional<Order> cancelled = transitions.transition(
-                Criteria.where("id").is(orderId).and("customerSessionId").is(customer.customerSessionId()),
-                OrderStatus.PENDING, OrderStatus.CANCELLED, OrderActor.customer(customer.customerSessionId()), null);
-        if(cancelled.isPresent()){
-            return OrderResponse.from(cancelled.get());
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Order current = find(customer, orderId); // 404 for anything that is not this customer's own order
+            if (current.getStatus() == OrderStatus.CANCELLED) {
+                return OrderResponse.from(current); // already cancelled: same answer
+            }
+            if (!OrderTransitionPolicy.customerMayCancel(current.getStatus())) {
+                throw DomainException.conflict("This order can no longer be cancelled because it is "
+                        + current.getStatus().name().toLowerCase());
+            }
+            Optional<Order> cancelled = transitions.transition(
+                    Criteria.where("id").is(orderId).and("customerSessionId").is(customer.customerSessionId()),
+                    current.getStatus(), OrderStatus.CANCELLED, OrderActor.customer(customer.customerSessionId()),
+                    null);
+            if (cancelled.isPresent()) {
+                return OrderResponse.from(cancelled.get());
+            }
+            // it moved between our read and our update (a payment released it, or the kitchen accepted it): look again
         }
-
-        // Nothing matched: it was already cancelled (fine, same answer) or the kitchen got there first.
-        Order current = find(customer, orderId);
-        if (current.getStatus() == OrderStatus.CANCELLED) {
-            return OrderResponse.from(current);
-        }
-        throw DomainException.conflict("This order can no longer be cancelled because it is "
-                + current.getStatus().name().toLowerCase());
+        throw DomainException.conflict("The order keeps changing, please try again");
     }
 
     private Order find(CustomerContext customer, String orderId) {

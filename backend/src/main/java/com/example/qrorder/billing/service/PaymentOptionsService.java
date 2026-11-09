@@ -31,6 +31,6 @@ public class PaymentOptionsService {
 
         return new CustomerPaymentOptions(s.getEnabledMethods(), upi ? s.getUpiId() : null,
                 upi ? s.getPayeeName() : null, link, s.isPartialPaymentsAllowed(), bill.currency(), due,
-                bill.complete());
+                bill.complete(), s.getPaymentTiming());
     }
 }

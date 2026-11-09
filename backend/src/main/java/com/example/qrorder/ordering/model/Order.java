@@ -98,5 +98,9 @@ public class Order {
     public String getCancelledBy() { return cancelledBy; }
     public String getPickedUpByUserId() { return pickedUpByUserId; }
     public Instant getPickedUpAt() { return pickedUpAt; }
+    /** For hotels where guests pay first: the order is created held, not yet visible to the kitchen. */
+    public void holdForPayment() {
+        this.status = OrderStatus.AWAITING_PAYMENT;
+    }
 
 }

@@ -21,7 +21,8 @@ public final class OrderTransitionPolicy {
             case ACCEPTED, PREPARING, READY -> EnumSet.of(Permission.KITCHEN_OPERATE);
             case DELIVERED -> EnumSet.of(Permission.DELIVER_ORDERS);
             case CANCELLED -> EnumSet.of(Permission.KITCHEN_OPERATE, Permission.DELIVER_ORDERS);
-            case PENDING -> throw new IllegalArgumentException("Nothing moves back to PENDING");
+            case PENDING -> throw new IllegalArgumentException("Staff do not move an order to PENDING: a payment does");
+            case AWAITING_PAYMENT -> throw new IllegalArgumentException("Nothing moves back to AWAITING_PAYMENT");
         };
     }
 
@@ -32,7 +33,7 @@ public final class OrderTransitionPolicy {
     }
 
     public static boolean customerMayCancel(OrderStatus from){
-        return from == OrderStatus.PENDING;
+        return from == OrderStatus.PENDING || from == OrderStatus.AWAITING_PAYMENT;
     }
 }
 

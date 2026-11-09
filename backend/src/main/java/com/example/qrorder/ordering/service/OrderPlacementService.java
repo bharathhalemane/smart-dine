@@ -7,6 +7,7 @@ import com.example.qrorder.dining.service.CustomerContext;
 import com.example.qrorder.ordering.dto.CartLine;
 import com.example.qrorder.ordering.dto.PricedCart;
 import com.example.qrorder.ordering.model.Order;
+import com.example.qrorder.ordering.model.OrderStatus;
 import com.example.qrorder.ordering.repository.OrderRepository;
 import com.mongodb.MongoException;
 import java.time.Clock;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
@@ -31,12 +33,15 @@ public class OrderPlacementService {
     private final OrderRepository orders;
     private final OrderPricingService pricing;
     private final OrderWriter writer;
+    private final ObjectProvider<OrderAdmissionPolicy> admission;
     private final Clock clock;
 
-    public OrderPlacementService(OrderRepository orders, OrderPricingService pricing,OrderWriter writer, Clock clock) {
+    public OrderPlacementService(OrderRepository orders, OrderPricingService pricing,OrderWriter writer,
+                                 ObjectProvider<OrderAdmissionPolicy> admission,Clock clock) {
         this.orders = orders;
         this.pricing = pricing;
         this.writer = writer;
+        this.admission = admission;
         this.clock = clock;
     }
 
@@ -77,6 +82,10 @@ public class OrderPlacementService {
         Order order = new Order(customer.hotelId(), customer.diningSessionId(), customer.tableId(),
                 customer.tableNumber(), customer.customerSessionId(), customer.label(), priced.currency(),
                 priced.lines(), priced.subtotalMinor(), idempotencyKey, requestHash, clock.instant());
+        if (admission.orderedStream()
+                .anyMatch(policy -> policy.initialStatus(customer.hotelId()) == OrderStatus.AWAITING_PAYMENT)) {
+            order.holdForPayment();
+        }
         try {
             return new Placement(writer.insertIntoOpenSession(order), true);
         } catch (DuplicateKeyException race) {

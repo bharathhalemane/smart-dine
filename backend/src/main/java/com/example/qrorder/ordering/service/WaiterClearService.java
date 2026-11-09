@@ -32,9 +32,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class WaiterClearService {
 
-    /** Orders someone is still working on. Delivered and cancelled orders do not hold a table. */
-    private static final Set<OrderStatus> IN_PROGRESS = EnumSet.of(OrderStatus.PENDING, OrderStatus.ACCEPTED,
-            OrderStatus.PREPARING, OrderStatus.READY);
+    /**  Orders someone is still working on, or waiting to be paid for.*/
+    private static final Set<OrderStatus> IN_PROGRESS = EnumSet.of(OrderStatus.AWAITING_PAYMENT, OrderStatus.PENDING,
+            OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY);
 
     private final DiningSessionRepository sessions;
     private final OrderRepository orders;
