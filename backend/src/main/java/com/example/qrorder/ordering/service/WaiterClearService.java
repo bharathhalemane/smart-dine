@@ -127,7 +127,15 @@ public class WaiterClearService {
             note = "Cleared with " + describe(open) + " in progress";
         }
 
-        SessionDetailResponse closed = lifecycle.close(tenant, session.getId());
+        if (force) {
+            List<String> warnings = lifecycle.closeWarnings(session);
+            if (!warnings.isEmpty()) {
+                String extra = String.join("; ", warnings);
+                note = note == null ? extra : note + "; " + extra;
+            }
+        }
+
+        SessionDetailResponse closed = lifecycle.close(tenant, session.getId(), force);
         audit.record(tenant.hotelId(), WaiterEventType.TABLE_CLEARED, tableId, table.number(), null,
                 tenant.userId(), null, null, note);
         return closed;

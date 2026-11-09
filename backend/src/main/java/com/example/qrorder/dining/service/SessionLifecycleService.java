@@ -10,6 +10,8 @@ import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -21,7 +23,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class SessionLifecycleService {
 
-    private static final int MAX_CLOSE_ATTEMPTS = 3;
+    private static final int MAX_CLOSE_ATTEMPTS = 5;
 
     private final MongoTemplate mongo;
     private final DiningSessionRepository sessions;
@@ -50,6 +52,11 @@ public class SessionLifecycleService {
 
     /** Clears the table: closes the session from OPEN or BILL_REQUESTED. */
     public SessionDetailResponse close(TenantContext tenant, String sessionId) {
+        return close(tenant, sessionId, false);
+    }
+
+    /** forced lets a check with an override (settlement) allow what it would normally refuse. */
+    public SessionDetailResponse close(TenantContext tenant, String sessionId, boolean forced) {
         tenant.require(Permission.CLEAR_TABLE);
 
         for (int attempt = 0; attempt < MAX_CLOSE_ATTEMPTS; attempt++) {
@@ -58,15 +65,27 @@ public class SessionLifecycleService {
             if (current.getStatus() == SessionStatus.CLOSED) {
                 throw DomainException.invalidTransition("This session is already closed");
             }
-            closeChecks.orderedStream().forEach(check -> check.check(tenant, current));
+            closeChecks.orderedStream().forEach(check -> check.check(tenant, current, forced));
 
-            DiningSession closed = compareAndSet(tenant, sessionId, current.getStatus(), SessionStatus.CLOSED);
+            // Only when a check's verdict depends on the orders must the close refuse to race a new order.
+            boolean guard = closeChecks.orderedStream().anyMatch(check -> check.guardsOrderCount(current));
+            Long expectedOrders = null;
+            if (guard) {
+                expectedOrders = Long.valueOf(current.getOrderCount());
+            }
+
+            DiningSession closed = closeIfUnchanged(tenant, sessionId, current.getStatus(), expectedOrders);
             if (closed != null) {
                 return SessionDetailResponse.from(closed);
             }
-            // The status changed between our read and our update (e.g. the bill was requested): read again.
+            // The status changed (or, with the guard on, an order arrived) since our read: read and check again.
         }
         throw DomainException.conflict("The session keeps changing, please try again");
+    }
+
+    /** What forcing this session closed would leave unsettled, for the audit note. */
+    public List<String> closeWarnings(DiningSession session) {
+        return closeChecks.orderedStream().map(check -> check.warning(session)).flatMap(Optional::stream).toList();
     }
 
     DiningSession transition(TenantContext tenant, String sessionId, SessionStatus expected, SessionStatus next) {
@@ -95,24 +114,29 @@ public class SessionLifecycleService {
                 "Cannot move a session from " + current.getStatus() + " to " + next);
     }
 
-    private DiningSession compareAndSet(TenantContext tenant, String sessionId,
-                                        SessionStatus expected, SessionStatus next) {
-        if (!expected.canTransitionTo(next)) {
-            throw new IllegalStateException("Transition " + expected + " -> " + next + " is not in the state machine");
+    /** expectedOrders null means "do not look at the order count". */
+    private DiningSession closeIfUnchanged(TenantContext tenant, String sessionId, SessionStatus expected,
+                                           Long expectedOrders) {
+        if (!expected.canTransitionTo(SessionStatus.CLOSED)) {
+            throw new IllegalStateException("Transition " + expected + " -> CLOSED is not in the state machine");
         }
         Instant now = clock.instant();
 
-        Query query = Query.query(Criteria.where("id").is(sessionId)
+        Criteria criteria = Criteria.where("id").is(sessionId)
                 .and("hotelId").is(tenant.hotelId())
-                .and("status").is(expected));
-        Update update = new Update()
-                .set("status", next)
-                .push("statusHistory", new StatusChange(expected, next, tenant.userId(), now))
-                .inc("version", 1); // keeps @Version honest for any later save()
-        if (next == SessionStatus.CLOSED) {
-            update.set("active", false).set("closedAt", now); // frees the table for the next scan
+                .and("status").is(expected);
+        if (expectedOrders != null) {
+            criteria = criteria.and("orderCount").is(expectedOrders.longValue());
         }
 
-        return mongo.findAndModify(query, update, FindAndModifyOptions.options().returnNew(true), DiningSession.class);
+        Update update = new Update()
+                .set("status", SessionStatus.CLOSED)
+                .push("statusHistory", new StatusChange(expected, SessionStatus.CLOSED, tenant.userId(), now))
+                .inc("version", 1) // keeps @Version honest for any later save()
+                .set("active", false)
+                .set("closedAt", now); // frees the table for the next scan
+
+        return mongo.findAndModify(Query.query(criteria), update,
+                FindAndModifyOptions.options().returnNew(true), DiningSession.class);
     }
 }
