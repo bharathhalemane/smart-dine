@@ -77,6 +77,15 @@ app:
       base-url: https://api.razorpay.com
   held-orders:
       sweep-enabled: true
+  rate-limit:
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    login-per-minute: 10
+    refresh-per-minute: 30
+    sensitive-auth-per-15-minutes: 10
+    scan-per-minute: 60
+    order-per-minute-per-guest: 20
+    order-per-minute-per-ip: 200
+    general-per-minute: 600
 
 
 springdoc:
