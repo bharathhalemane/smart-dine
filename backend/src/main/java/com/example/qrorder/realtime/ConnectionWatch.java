@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import com.example.qrorder.tenancy.event.HotelStatusChanged;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -18,6 +19,8 @@ import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
@@ -120,6 +123,12 @@ public class ConnectionWatch {
     @EventListener
     public void onDisconnect(SessionDisconnectEvent event) {
         tracked.remove(event.getSessionId());
+    }
+
+    /** A hotel was suspended, deactivated or reactivated: do not wait for the next scheduled re-check. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onHotelStatus(HotelStatusChanged event) {
+        recheck();
     }
 
     // ---------- the re-check ----------
