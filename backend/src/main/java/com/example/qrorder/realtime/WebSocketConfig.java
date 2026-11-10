@@ -23,19 +23,22 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthInterceptor authInterceptor;
     private final CustomerCookieHandshake cookieHandshake;
+    private final ConnectionWatch watch;
     private final TaskScheduler heartbeats;
     private final String[] allowedOrigins;
 
     public WebSocketConfig(StompAuthInterceptor authInterceptor, CustomerCookieHandshake cookieHandshake,
-                           @Qualifier("wsHeartbeatScheduler") TaskScheduler heartbeats,
+                           ConnectionWatch watch, @Qualifier("wsHeartbeatScheduler") TaskScheduler heartbeats,
                            @Value("${app.cors.allowed-origins}") String origins) {
         this.authInterceptor = authInterceptor;
         this.cookieHandshake = cookieHandshake;
+        this.watch = watch;
         this.heartbeats = heartbeats;
         this.allowedOrigins = Arrays.stream(origins.split(",")).map(String::trim)
                 .filter(s -> !s.isEmpty()).toArray(String[]::new);
     }
 
+    /** Static, so Spring can create it without first creating this class (which needs it). */
     @Bean(name = "wsHeartbeatScheduler")
     static ThreadPoolTaskScheduler wsHeartbeatScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
@@ -70,6 +73,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registration.setMessageSizeLimit(16 * 1024)
                 .setSendBufferSizeLimit(512 * 1024)
                 .setSendTimeLimit(20_000)
-                .setTimeToFirstMessage(30_000);
+                .setTimeToFirstMessage(30_000)
+                .addDecoratorFactory(watch::decorate);
     }
 }

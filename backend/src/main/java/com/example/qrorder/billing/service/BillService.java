@@ -20,6 +20,8 @@ import com.example.qrorder.ordering.repository.OrderRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
 import com.example.qrorder.tenancy.service.HotelLookupService;
+import com.example.qrorder.billing.event.BillChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -53,13 +55,14 @@ public class BillService {
     private final BillingSettingsService settings;
     private final PaymentSettingsService paymentSettings;
     private final ObjectProvider<OrderReleaseService> releaser;
+    private final ApplicationEventPublisher events;
     private final MongoTemplate mongo;
     private final Clock clock;
 
     public BillService(BillRepository bills, DiningSessionRepository sessions, OrderRepository orders,
                        HotelLookupService hotels, BillingSettingsService settings,
                        PaymentSettingsService paymentSettings, ObjectProvider<OrderReleaseService> releaser,
-                       MongoTemplate mongo, Clock clock) {
+                       ApplicationEventPublisher events,MongoTemplate mongo, Clock clock) {
         this.bills = bills;
         this.sessions = sessions;
         this.orders = orders;
@@ -67,6 +70,7 @@ public class BillService {
         this.releaser = releaser;
         this.paymentSettings = paymentSettings;
         this.settings = settings;
+        this.events = events;
         this.mongo = mongo;
         this.clock = clock;
     }
@@ -124,6 +128,7 @@ public class BillService {
             throw DomainException.conflict("A bill can carry at most " + MAX_DISCOUNTS + " discounts");
         }
         Bill result = current(session);
+        events.publishEvent(new BillChanged(session.getHotelId(), session.getId(), "DISCOUNT_ADDED"));
         releaser.ifAvailable(r -> r.releaseQuietly(session)); // a discount can make an earlier payment enough
         return view(session, result, true);
     }
@@ -140,6 +145,7 @@ public class BillService {
         if (updated == null) {
             throw DomainException.notFound("Discount");
         }
+        events.publishEvent(new BillChanged(session.getHotelId(), session.getId(), "DISCOUNT_REMOVED"));
         return view(session, current(session), true);
     }
 

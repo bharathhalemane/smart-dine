@@ -10,6 +10,8 @@ import com.example.qrorder.tables.model.WaiterEventType;
 import com.example.qrorder.tables.repository.WaiterEventRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
+import com.example.qrorder.tables.event.FloorChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import java.time.Clock;
 import java.util.HashSet;
 import java.util.List;
@@ -27,11 +29,14 @@ public class WaiterAuditService {
 
     private final WaiterEventRepository events;
     private final AccountService accounts;
+    private final ApplicationEventPublisher publisher;
     private final Clock clock;
 
-    public WaiterAuditService(WaiterEventRepository events, AccountService accounts, Clock clock) {
+    public WaiterAuditService(WaiterEventRepository events, AccountService accounts, Clock clock,
+                              ApplicationEventPublisher publisher) {
         this.events = events;
         this.accounts = accounts;
+        this.publisher = publisher;
         this.clock = clock;
     }
 
@@ -40,6 +45,7 @@ public class WaiterAuditService {
         try {
             events.save(new WaiterEvent(hotelId, type, tableId, tableNumber, orderId, actorUserId, fromUserId,
                     toUserId, note, clock.instant()));
+            publisher.publishEvent(new FloorChanged(hotelId, type.name(), tableId, tableNumber, orderId));
         } catch (RuntimeException e) {
             log.error("Could not write waiter audit event {} for hotel {}", type, hotelId, e);
         }

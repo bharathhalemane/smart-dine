@@ -8,6 +8,8 @@ import com.example.qrorder.dining.model.SessionStatus;
 import com.example.qrorder.dining.repository.DiningSessionRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
+import com.example.qrorder.dining.event.SessionChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -28,13 +30,16 @@ public class SessionLifecycleService {
     private final MongoTemplate mongo;
     private final DiningSessionRepository sessions;
     private final ObjectProvider<SessionCloseCheck> closeChecks;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public SessionLifecycleService(MongoTemplate mongo, DiningSessionRepository sessions,
-                                   ObjectProvider<SessionCloseCheck> closeChecks, Clock clock) {
+                                   ObjectProvider<SessionCloseCheck> closeChecks, Clock clock,
+                                   ApplicationEventPublisher events) {
         this.mongo = mongo;
         this.sessions = sessions;
         this.closeChecks = closeChecks;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -76,6 +81,8 @@ public class SessionLifecycleService {
 
             DiningSession closed = closeIfUnchanged(tenant, sessionId, current.getStatus(), expectedOrders);
             if (closed != null) {
+                events.publishEvent(new SessionChanged(closed.getHotelId(), closed.getId(),
+                        closed.getTableNumber(), closed.getStatus().name()));
                 return SessionDetailResponse.from(closed);
             }
             // The status changed (or, with the guard on, an order arrived) since our read: read and check again.
@@ -104,6 +111,8 @@ public class SessionLifecycleService {
         DiningSession updated = mongo.findAndModify(query, update,
                 FindAndModifyOptions.options().returnNew(true), DiningSession.class);
         if (updated != null) {
+            events.publishEvent(new SessionChanged(updated.getHotelId(), updated.getId(),
+                    updated.getTableNumber(), updated.getStatus().name()));
             return updated;
         }
 

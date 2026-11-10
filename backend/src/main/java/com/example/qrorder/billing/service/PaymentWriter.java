@@ -1,9 +1,11 @@
 package com.example.qrorder.billing.service;
 
+import com.example.qrorder.billing.event.BillChanged;
 import com.example.qrorder.billing.model.Bill;
 import com.example.qrorder.billing.model.Payment;
 import com.example.qrorder.billing.model.PaymentStatus;
 import java.time.Instant;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -27,9 +29,11 @@ public class PaymentWriter {
     }
 
     private final MongoTemplate mongo;
+    private final ApplicationEventPublisher events;
 
-    public PaymentWriter(MongoTemplate mongo) {
+    public PaymentWriter(MongoTemplate mongo, ApplicationEventPublisher events) {
         this.mongo = mongo;
+        this.events = events;
     }
 
     /**
@@ -50,7 +54,9 @@ public class PaymentWriter {
         if (updated == null) {
             throw new StaleBillException();
         }
-        return mongo.insert(payment);
+        Payment saved = mongo.insert(payment);
+        events.publishEvent(new BillChanged(saved.getHotelId(), saved.getDiningSessionId(), "PAYMENT_RECORDED"));
+        return saved;
     }
 
     /** RECORDED to VOIDED, and the amount comes off the bill's paid counter, in one transaction. Null if not RECORDED. */
@@ -73,6 +79,7 @@ public class PaymentWriter {
         if (bill == null) {
             throw new IllegalStateException("The bill's paid total is lower than a recorded payment: " + paymentId);
         }
+        events.publishEvent(new BillChanged(voided.getHotelId(), voided.getDiningSessionId(), "PAYMENT_VOIDED"));
         return voided;
     }
 }
