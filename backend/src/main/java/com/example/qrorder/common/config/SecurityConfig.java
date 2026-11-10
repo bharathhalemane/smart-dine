@@ -54,6 +54,7 @@ public class SecurityConfig {
                         .accessDeniedHandler(problems)
                         .jwt(j -> j.jwtAuthenticationConverter(jwtConverter)))
                 .authorizeHttpRequests(a -> a
+                        .requestMatchers("/api/v1/admin/**").hasRole("PLATFORM_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.POST,
