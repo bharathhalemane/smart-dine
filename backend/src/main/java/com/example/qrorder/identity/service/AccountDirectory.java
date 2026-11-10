@@ -34,6 +34,18 @@ public class AccountDirectory {
                 && user.getPlatformRole() == PlatformRole.PLATFORM_ADMIN;
     }
 
+    public long countUsers() {
+        return mongo.count(new Query(), User.class);
+    }
+
+    public long countUsersByStatus(UserStatus status) {
+        return mongo.count(Query.query(Criteria.where("status").is(status)), User.class);
+    }
+
+    public long countPlatformAdmins() {
+        return mongo.count(Query.query(Criteria.where("platformRole").is(PlatformRole.PLATFORM_ADMIN)), User.class);
+    }
+
     static String escape(String text) {
         return text.replaceAll("[\\\\^$.|?*+()\\[\\]{}]", "\\\\$0");
     }
