@@ -2,8 +2,10 @@ package com.example.qrorder.common.config;
 
 import com.example.qrorder.common.security.BearerJwtConverter;
 import com.example.qrorder.common.security.SecurityProblemHandler;
-import java.util.Arrays;
+import com.example.qrorder.common.config.CorsOrigins;
 import java.util.List;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,7 +28,9 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, SecurityProblemHandler problems,
-                                    BearerJwtConverter jwtConverter) throws Exception {
+                                    BearerJwtConverter jwtConverter,
+                                    @Value("${app.security.content-security-policy:default-src 'none'; frame-ancestors 'none'}")
+                                    String contentSecurityPolicy) throws Exception {
         // A stale access token must not block the public auth endpoints (login, refresh, ...),
         // so bearer tokens are ignored on POST /api/v1/auth/**.
         DefaultBearerTokenResolver defaultResolver = new DefaultBearerTokenResolver();
@@ -41,10 +45,17 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(h -> h
-                        .contentTypeOptions(Customizer.withDefaults())
-                        .frameOptions(f -> f.deny())
-                        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000)))
+                .headers(h -> {
+                    h.contentTypeOptions(Customizer.withDefaults())
+                            .frameOptions(f -> f.deny())
+                            .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000))
+                            .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                            .addHeaderWriter(new StaticHeadersWriter("Permissions-Policy",
+                                    "camera=(), microphone=(), geolocation=(), payment=()"));
+                    if (!contentSecurityPolicy.isBlank()) {
+                        h.contentSecurityPolicy(csp -> csp.policyDirectives(contentSecurityPolicy));
+                    }
+                })
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(problems)
                         .accessDeniedHandler(problems))
@@ -80,10 +91,7 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource(@Value("${app.cors.allowed-origins}") String origins) {
         CorsConfiguration config = new CorsConfiguration();
-        List<String> allowed = Arrays.stream(origins.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
+        List<String> allowed = CorsOrigins.parse(origins);
         config.setAllowedOrigins(allowed); // explicit allowlist, never "*"
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Requested-With"));

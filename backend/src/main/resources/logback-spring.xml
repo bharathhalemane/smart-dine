@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- every message and every stack trace goes through the Redactor -->
+    <conversionRule conversionWord="m" converterClass="com.example.qrorder.common.logging.RedactingMessageConverter"/>
+    <conversionRule conversionWord="msg" converterClass="com.example.qrorder.common.logging.RedactingMessageConverter"/>
+    <conversionRule conversionWord="message" converterClass="com.example.qrorder.common.logging.RedactingMessageConverter"/>
+    <conversionRule conversionWord="wEx" converterClass="com.example.qrorder.common.logging.RedactingThrowableConverter"/>
+
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
