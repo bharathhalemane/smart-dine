@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import org.junit.jupiter.api.RepeatedTest;
 import com.example.qrorder.billing.model.Bill;
 import com.example.qrorder.billing.model.HotelPaymentProvider;
 import com.example.qrorder.billing.model.OnlinePayment;
@@ -572,6 +572,82 @@ class OnlinePaymentIT extends AbstractIntegrationTest {
 
         assertThat(payments.count()).isEqualTo(1);
         assertThat(paidOnBill()).isEqualTo(27000);
+    }
+
+    @Test
+    void twelveCopiesOfTheSameCaptureAtOnceAreCountedOnce() throws Exception {
+        String attemptId = startOk(27000);
+        String body = event("payment.captured", orderIdOf(attemptId), "pay_many", 27000, "INR");
+        String signature = sign(body, WEBHOOK_SECRET);
+
+        ExecutorService pool = Executors.newFixedThreadPool(12);
+        CountDownLatch go = new CountDownLatch(1);
+        try {
+            List<Future<Integer>> futures = new ArrayList<>();
+            for (int i = 0; i < 12; i++) {
+                futures.add(pool.submit(() -> {
+                    go.await();
+                    return mvc.perform(post(hookPath).contentType(MediaType.APPLICATION_JSON).content(body)
+                            .header("X-Razorpay-Signature", signature)).andReturn().getResponse().getStatus();
+                }));
+            }
+            go.countDown();
+            for (Future<Integer> future : futures) {
+                assertThat(future.get(60, TimeUnit.SECONDS)).isEqualTo(200);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(payments.count()).isEqualTo(1);
+        assertThat(paidOnBill()).isEqualTo(27000);
+    }
+
+    @RepeatedTest(5)
+    void anOnlineCaptureRacingACashPaymentNeverOverpaysAndNeverLosesMoney() throws Exception {
+        String attemptId = startOk(15000);
+        String body = event("payment.captured", orderIdOf(attemptId), "pay_race", 15000, "INR");
+        String signature = sign(body, WEBHOOK_SECRET);
+        String cashier = login("cashier@example.com");
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch go = new CountDownLatch(1);
+        int capture;
+        int cash;
+        try {
+            Future<Integer> captureCall = pool.submit(() -> {
+                go.await();
+                return mvc.perform(post(hookPath).contentType(MediaType.APPLICATION_JSON).content(body)
+                        .header("X-Razorpay-Signature", signature)).andReturn().getResponse().getStatus();
+            });
+            Future<Integer> cashCall = pool.submit(() -> {
+                go.await();
+                return mvc.perform(post("/api/v1/hotels/" + hotelId + "/sessions/" + sessionId + "/payments")
+                                .header("Idempotency-Key", "race-cash-" + UUID.randomUUID())
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + cashier)
+                                .contentType(MediaType.APPLICATION_JSON).content("{\"method\":\"CASH\",\"amountMinor\":20000}"))
+                        .andReturn().getResponse().getStatus();
+            });
+            go.countDown();
+            capture = captureCall.get(60, TimeUnit.SECONDS);
+            cash = cashCall.get(60, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        // 15000 + 20000 is more than the 27000 due, so exactly one of them can be counted
+        assertThat(capture).as("a webhook is always acknowledged").isEqualTo(200);
+        assertThat(cash).isIn(201, 409);
+        OnlinePaymentStatus attempt = attempts.findById(attemptId).orElseThrow().getStatus();
+        if (cash == 201) {
+            assertThat(paidOnBill()).isEqualTo(20000);
+            assertThat(attempt).as("the captured money is parked for a human, not dropped")
+                    .isEqualTo(OnlinePaymentStatus.NEEDS_REVIEW);
+        } else {
+            assertThat(paidOnBill()).isEqualTo(15000);
+            assertThat(attempt).isEqualTo(OnlinePaymentStatus.CAPTURED);
+        }
+        assertThat(paidOnBill()).isLessThanOrEqualTo(27000);
     }
 
     @Test
