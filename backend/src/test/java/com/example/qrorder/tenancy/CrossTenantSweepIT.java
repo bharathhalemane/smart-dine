@@ -5,7 +5,9 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import com.example.qrorder.media.model.MediaAsset;
+import com.example.qrorder.media.model.MediaPurpose;
+import com.example.qrorder.media.repository.MediaAssetRepository;
 import com.example.qrorder.billing.model.PaymentMethod;
 import com.example.qrorder.billing.model.PaymentSettings;
 import com.example.qrorder.billing.repository.BillRepository;
@@ -108,6 +110,7 @@ class CrossTenantSweepIT extends AbstractIntegrationTest {
     @Autowired PaymentRepository payments;
     @Autowired PaymentSettingsRepository paymentSettings;
     @Autowired PasswordEncoder encoder;
+    @Autowired MediaAssetRepository assets;
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
@@ -154,6 +157,7 @@ class CrossTenantSweepIT extends AbstractIntegrationTest {
         notExercised.clear();
         skippedFakes.clear();
         acceptedNoops.clear();
+        assets.deleteAll();
         a = seedHotel("a");
         b = seedHotel("b");
     }
@@ -211,9 +215,10 @@ class CrossTenantSweepIT extends AbstractIntegrationTest {
 
         String billId = bills.findAll().stream().filter(x -> hotelId.equals(x.getHotelId()))
                 .map(x -> x.getId()).findFirst().orElse("64b000000000000000000004");
-
+        String assetId = assets.save(new MediaAsset(hotelId, MediaPurpose.MENU_ITEM,
+                "hotels/" + hotelId + "/menu/" + UUID.randomUUID() + ".jpg", "image/jpeg", 100L, owner.getId(), now)).getId();
         return new Dataset(hotelId, token, cookie, Map.of("tableId", tableId, "sessionId", sessionId,
-                "orderId", orderId, "itemId", itemId, "categoryId", categoryId, "paymentId", paymentId, "billId", billId,
+                "orderId", orderId, "itemId", itemId, "categoryId", categoryId, "paymentId", paymentId, "billId", billId, "assetId", assetId,
                 "userId", owner.getId()));
     }
 

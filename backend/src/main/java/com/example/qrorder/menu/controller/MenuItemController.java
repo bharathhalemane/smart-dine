@@ -9,8 +9,10 @@ import com.example.qrorder.tenancy.context.TenantContext;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import com.example.qrorder.media.dto.AttachImageRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,6 +54,17 @@ public class MenuItemController {
     public ItemResponse update(@CurrentTenant TenantContext tenant, @PathVariable("itemId") String itemId,
                                @Valid @RequestBody UpdateItemRequest request) {
         return service.update(tenant, itemId, request);
+    }
+
+    @PutMapping("/{itemId}/image")
+    public ItemResponse setImage(@CurrentTenant TenantContext tenant, @PathVariable("itemId") String itemId,
+                                 @Valid @RequestBody AttachImageRequest request) {
+        return service.setImage(tenant, itemId, request.assetId());
+    }
+
+    @DeleteMapping("/{itemId}/image")
+    public ItemResponse clearImage(@CurrentTenant TenantContext tenant, @PathVariable("itemId") String itemId) {
+        return service.clearImage(tenant, itemId);
     }
 
     @DeleteMapping("/{itemId}")

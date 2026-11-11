@@ -13,6 +13,8 @@ import com.example.qrorder.menu.repository.MenuItemRepository;
 import com.example.qrorder.tenancy.context.TenantContext;
 import com.example.qrorder.tenancy.model.Permission;
 import com.example.qrorder.tenancy.service.HotelLookupService;
+import com.example.qrorder.media.model.MediaPurpose;
+import com.example.qrorder.media.service.MediaService;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;
@@ -31,14 +33,16 @@ public class MenuItemService {
     private final MenuItemRepository items;
     private final MenuCategoryRepository categories;
     private final HotelLookupService hotels;
+    private final MediaService media;
     private final Clock clock;
 
     public MenuItemService(MenuItemRepository items, MenuCategoryRepository categories,
-                           HotelLookupService hotels, Clock clock) {
+                           HotelLookupService hotels, Clock clock, MediaService media) {
         this.items = items;
         this.categories = categories;
         this.hotels = hotels;
         this.clock = clock;
+        this.media = media;
     }
 
     public ItemResponse create(TenantContext tenant, CreateItemRequest request) {
@@ -135,6 +139,37 @@ public class MenuItemService {
         } catch (DuplicateKeyException e) {
             throw nameTaken();
         }
+    }
+
+    public ItemResponse setImage(TenantContext tenant, String itemId, String assetId) {
+        tenant.require(Permission.MANAGE_MENU);
+        MenuItem item = find(tenant, itemId);
+        MediaService.ClaimedImage image = media.claim(tenant, assetId, MediaPurpose.MENU_ITEM, "menuItem:" + item.getId());
+        String previous = item.getImageAssetId();
+        if (assetId.equals(previous)) {
+            return ItemResponse.from(item, currency(tenant));
+        }
+        item.setImage(image.assetId(), image.url());
+        item.setUpdatedAt(clock.instant());
+        MenuItem saved = items.save(item);
+        if (previous != null) {
+            media.discard(tenant, previous);
+        }
+        return ItemResponse.from(saved, currency(tenant));
+    }
+
+    public ItemResponse clearImage(TenantContext tenant, String itemId) {
+        tenant.require(Permission.MANAGE_MENU);
+        MenuItem item = find(tenant, itemId);
+        String previous = item.getImageAssetId();
+        if (previous == null) {
+            return ItemResponse.from(item, currency(tenant));
+        }
+        item.clearImage();
+        item.setUpdatedAt(clock.instant());
+        MenuItem saved = items.save(item);
+        media.discard(tenant, previous);
+        return ItemResponse.from(saved, currency(tenant));
     }
 
     /** Soft delete: old orders keep pointing at this item. */

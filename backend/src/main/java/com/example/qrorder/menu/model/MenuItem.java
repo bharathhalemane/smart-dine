@@ -27,6 +27,8 @@ public class MenuItem {
     private int sortOrder;
     private boolean active = true;
     private boolean available = true;
+    private String imageAssetId;
+    private String imageUrl;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -66,7 +68,18 @@ public class MenuItem {
     public Instant getUpdatedAt() { return updatedAt; }
     public List<MenuVariant> getVariants() { return variants == null ? List.of() : List.copyOf(variants); }
     public List<AddOnGroup> getAddOnGroups() { return addOnGroups == null ? List.of() : List.copyOf(addOnGroups); }
+    public String getImageAssetId() { return imageAssetId; }
+    public String getImageUrl() { return imageUrl; }
 
+    public void setImage(String assetId, String url) {
+        this.imageAssetId = assetId;
+        this.imageUrl = url;
+    }
+
+    public void clearImage() {
+        this.imageAssetId = null;
+        this.imageUrl = null;
+    }
     public void setName(String name) {
         this.name = name;
         this.nameKey = name.toLowerCase(Locale.ROOT);

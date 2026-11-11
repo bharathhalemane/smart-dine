@@ -34,3 +34,12 @@ Before real customer data, pick one:
 - **MongoDB Atlas** (managed): authentication, TLS, backups and replica set included. Set `MONGODB_URI` to the `mongodb+srv://` string;
   the startup guard already accepts it. A free tier exists for staging; check its backup features before using it for production.
 - **Self-hosted with authentication:** needs a keyfile and an admin user. Ask for this as its own step; do not improvise it.
+
+## Image storage
+- Create a bucket in an S3-compatible store (Cloudflare R2, AWS S3, ...) and an API token that can read, write and delete objects in that bucket only.
+- Serve images from a public address (custom domain or CDN) and put it in `APP_MEDIA_PUBLICBASEURL`. Use a different domain from the API, so image content can never share cookies with it.
+- Browsers upload directly to the bucket, so it needs CORS for your frontend origin:
+  `[{"AllowedOrigins":["https://app.yourdomain.com"],"AllowedMethods":["PUT"],"AllowedHeaders":["Content-Type"],"MaxAgeSeconds":3600}]`
+- Add a bucket lifecycle rule that deletes objects older than a few days under no prefix you care about, only if you accept that images
+  that were uploaded but never attached are removed; this platform already removes unfinished uploads itself.
+- The frontend's Content-Security-Policy needs `img-src` to include the public address.

@@ -12,11 +12,11 @@ public record PublicMenuResponse(String hotelId, String hotelName, String curren
     public record Category(String id, String name, List<Item> items) {}
 
     public record Item(String id, String name, String description, long priceMinor, Diet diet, boolean available,
-                       List<MenuVariant> variants, List<AddOnGroup> addOnGroups) {
+                       List<MenuVariant> variants, List<AddOnGroup> addOnGroups, String imageUrl) {
 
         public static Item from(MenuItem i) {
             return new Item(i.getId(), i.getName(), i.getDescription(), i.getPriceMinor(), i.getDiet(),
-                    i.isAvailable(), i.getVariants(), i.getAddOnGroups());
+                    i.isAvailable(), i.getVariants(), i.getAddOnGroups(), i.getImageUrl());
         }
     }
 }
