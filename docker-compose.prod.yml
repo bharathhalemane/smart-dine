@@ -1,0 +1,50 @@
+name: qr-order-prod
+
+services:
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    # Single-node replica set (transactions need one). Not published to the host: only the app can reach it.
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: >
+        mongosh --port 27017 --quiet --eval
+        "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 5s
+
+  app:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/qrorder?replicaSet=rs0
+    depends_on:
+      mongo:
+        condition: service_healthy
+    stop_grace_period: 40s   # longer than the app's 25 s graceful shutdown
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  mongo-data:
+  caddy-data:
+  caddy-config:

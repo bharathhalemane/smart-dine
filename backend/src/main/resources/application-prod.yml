@@ -1,0 +1,27 @@
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 25s
+  data:
+    mongodb:
+      # No localhost default in production: a missing value must stop startup.
+      uri: ${MONGODB_URI}
+      auto-index-creation: false
+
+server:
+  # Use the real client IP / scheme from the trusted reverse proxy (default trusted ranges = private networks).
+  forward-headers-strategy: native
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+app:
+  customer:
+    cookie-secure: true
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
+
+logging:
+  level:
+    root: INFO
+    com.example.qrorder: INFO

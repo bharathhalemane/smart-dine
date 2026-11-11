@@ -1,0 +1,5 @@
+{$DOMAIN} {
+    encode zstd gzip
+    # WebSocket upgrades work through reverse_proxy without extra settings.
+    reverse_proxy app:8080
+}
