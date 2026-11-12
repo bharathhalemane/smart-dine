@@ -25,3 +25,20 @@ logging:
   level:
     root: INFO
     com.example.qrorder: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,mongo
+  metrics:
+    tags:
+      application: qr-order-backend
+    distribution:
+      percentiles-histogram:
+        "[http.server.requests]": true
