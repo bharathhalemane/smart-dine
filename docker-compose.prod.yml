@@ -1,13 +1,19 @@
 name: qr-order-prod
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   mongo:
     image: mongo:7.0
     restart: unless-stopped
-    # Single-node replica set (transactions need one). Not published to the host: only the app can reach it.
     command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     volumes:
       - mongo-data:/data/db
+    logging: *default-logging
     healthcheck:
       test: >
         mongosh --port 27017 --quiet --eval
@@ -26,7 +32,8 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-    stop_grace_period: 40s   # longer than the app's 25 s graceful shutdown
+    stop_grace_period: 40s
+    logging: *default-logging
 
   caddy:
     image: caddy:2
@@ -43,8 +50,39 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    logging: *default-logging
+
+  # ---- optional: start with  docker compose -f docker-compose.prod.yml --profile monitoring up -d ----
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:latest      # pin a version once you have tested it
+    restart: unless-stopped
+    volumes:
+      - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"          # reachable from the server itself only (use an SSH tunnel)
+    depends_on:
+      - app
+    logging: *default-logging
+
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana-oss:latest  # pin a version once you have tested it
+    restart: unless-stopped
+    volumes:
+      - ./ops/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"          # reachable from the server itself only; first login admin/admin forces a new password
+    depends_on:
+      - prometheus
+    logging: *default-logging
 
 volumes:
   mongo-data:
   caddy-data:
   caddy-config:
+  prometheus-data:
+  grafana-data:

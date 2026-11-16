@@ -19,17 +19,14 @@ platform, and each one's data stays strictly isolated.
 6. [Project structure](#project-structure)
 7. [Roles and permissions](#roles-and-permissions)
 8. [API overview](#api-overview)
-9. [Getting started (development)](#getting-started-development)
-10. [Configuration](#configuration)
-11. [Testing](#testing)
-12. [Security](#security)
-13. [Payments and where the money goes](#payments-and-where-the-money-goes)
-14. [Production deployment](#production-deployment)
-15. [Operations: backups, monitoring, images](#operations-backups-monitoring-images)
-16. [Design decisions](#design-decisions)
-17. [Roadmap](#roadmap)
-18. [Documentation](#documentation)
-19. [Author and license](#author-and-license)
+9. [Configuration](#configuration)
+10. [Security](#security)
+11. [Payments and where the money goes](#payments-and-where-the-money-goes)
+12. [Operations: backups, monitoring, images](#operations-backups-monitoring-images)
+13. [Design decisions](#design-decisions)
+14. [Roadmap](#roadmap)
+15. [Documentation](#documentation)
+16. [Author and license](#author)
 
 ---
 
@@ -202,41 +199,6 @@ All endpoints are under `/api/v1`. Interactive documentation (Swagger UI) is ava
 Errors use RFC 7807 `application/problem+json` with a stable `code`, and every response carries an `X-Trace-Id` header
 to correlate it with the logs.
 
-## Getting started (development)
-
-### Prerequisites
-
-- JDK 21 and Maven 3.9+
-- Docker (Mongo for development, and Testcontainers for tests)
-
-### Run
-
-```bash
-docker compose up -d                      # Mongo replica set and Mailpit (mail inbox UI: http://localhost:8025)
-cd backend
-SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run
-```
-
-- Health: <http://localhost:8080/actuator/health>
-- Swagger UI (dev only): <http://localhost:8080/swagger-ui.html>
-- Verification and reset emails appear in Mailpit.
-
-### Try it
-
-```bash
-# 1. Register, then open the verification link in Mailpit
-curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" \
-  -d '{"email":"owner@example.com","password":"a-long-password-123","name":"Owner"}'
-
-# 2. Log in and keep the accessToken
-curl -X POST localhost:8080/api/v1/auth/login -H "Content-Type: application/json" \
-  -d '{"email":"owner@example.com","password":"a-long-password-123"}'
-
-# 3. Create a restaurant
-curl -X POST localhost:8080/api/v1/hotels -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
-  -d '{"name":"Spice Garden","address":"Bengaluru","timezone":"Asia/Kolkata"}'
-```
-
 To get a ready-made platform admin, set `APP_ADMIN_EMAIL` and `APP_ADMIN_PASSWORD` before the first start.
 
 ## Configuration
@@ -254,18 +216,8 @@ Everything is configured with environment variables; see [`.env.example`](.env.e
 | `APP_FROM_EMAIL`, `SPRING_MAIL_*` | Outgoing email |
 | `APP_MEDIA_*` | Image storage: `BUCKET`, `ENDPOINT`, `REGION`, `ACCESSKEY`, `SECRETKEY`, `PUBLICBASEURL` (leave `BUCKET` empty to disable) |
 
-Rule for names: replace dots with underscores, remove dashes and use upper case (`app.jwt.secret` becomes `APP_JWT_SECRET`).
-
 The `prod` profile **refuses to start** on unsafe settings: an insecure cookie, a non-HTTPS or localhost CORS origin, a weak
 JWT secret, or a MongoDB URI that is not a replica set.
-
-## Testing
-
-```bash
-cd backend
-mvn test           # unit and architecture tests
-mvn verify         # also integration tests (needs Docker for Testcontainers)
-```
 
 | Suite | What it proves |
 |---|---|
@@ -275,16 +227,6 @@ mvn verify         # also integration tests (needs Docker for Testcontainers)
 | `ArchitectureTest` | Modules only depend on the modules they are allowed to |
 | Security tests | Headers, CORS, rate limits, log redaction |
 | `IndexInitializerIT` | Required indexes (such as one open session per table) exist |
-
-Opt-in suites:
-
-```bash
-mvn verify -Dload.test=true -Dload.guests=200                 # load smoke test (report in target/load-report.txt)
-mvn -Psecurity-scan verify                                    # dependency vulnerability scan (needs NVD_API_KEY)
-mvn verify -Ds3.test.image=<minio-compatible-image>           # signed uploads against a real S3-compatible server
-```
-
-Run the load test on a quiet machine: a busy laptop distorts the timings.
 
 ## Security
 
@@ -310,14 +252,6 @@ Run the load test on a quiet machine: a busy laptop distorts the timings.
 Use Razorpay **test keys** (`rzp_test_...`) until the whole flow works end to end, and keep test and live key, secret and
 webhook secret together as a set. Webhooks need a public HTTPS address.
 
-## Production deployment
-
-```bash
-cp .env.example .env                       # fill in every value
-docker compose -f docker-compose.prod.yml up -d --build
-curl -i https://<your-domain>/actuator/health/readiness
-```
-
 The stack runs MongoDB (a single-node replica set, not published to the host), the app (non-root image, graceful shutdown)
 and Caddy (automatic HTTPS, the only public entry point on ports 80 and 443). Full steps, updates and rollback are in
 [`docs/deployment.md`](docs/deployment.md).
@@ -338,7 +272,6 @@ set up off-server backups, and rehearse a restore.
 - **Images:** browsers upload directly to the bucket using a signed URL; the server then confirms the file is a real image.
   The bucket needs CORS for your frontend origin, and images should be served from a separate public domain or CDN.
 
-Details are in [`docs/operations.md`](docs/operations.md).
 
 ## Design decisions
 
@@ -364,13 +297,11 @@ Details are in [`docs/operations.md`](docs/operations.md).
 
 ## Documentation
 
-- [`docs/deployment.md`](docs/deployment.md): from a blank server to a running system, updates and rollback
 - [`docs/operations.md`](docs/operations.md): indexes, backups and restore, image storage, database access control
 - [`docs/concurrency-matrix.md`](docs/concurrency-matrix.md): the twelve concurrency cases and the tests that cover them
 - Design document: `restaurant-qr-platform-design.md`
 
-## Author and license
+## Author
 
 Built by Bharath ([github.com/bharathhalemane](https://github.com/bharathhalemane)).
 
-License: not chosen yet. Add a `LICENSE` file before publishing the repository.

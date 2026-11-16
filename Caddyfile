@@ -1,5 +1,10 @@
 {$DOMAIN} {
     encode zstd gzip
+
+    # Operational endpoints are for the internal network only.
+    @internal path /actuator/prometheus /actuator/info
+    respond @internal 404
+
     # WebSocket upgrades work through reverse_proxy without extra settings.
     reverse_proxy app:8080
 }
