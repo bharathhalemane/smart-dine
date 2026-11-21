@@ -79,6 +79,8 @@ app:
       base-url: https://api.razorpay.com
   held-orders:
       sweep-enabled: true
+  payouts:
+    sweep-enabled: true
   rate-limit:
     enabled: ${APP_RATE_LIMIT_ENABLED:true}
     login-per-minute: 10
@@ -93,6 +95,7 @@ app:
       key-id: ${APP_RAZORPAY_KEY_ID:}
       key-secret: ${APP_RAZORPAY_KEY_SECRET:}
       webhook-secret: ${APP_RAZORPAY_WEBHOOK_SECRET:}
+
 
 
 springdoc:

@@ -90,7 +90,13 @@ public class OnlinePaymentWebhookService {
         if (!providers.get("razorpay").verifyWebhook(credentials, rawBody, signature)) {
             throw new DomainException(ErrorCode.UNAUTHENTICATED, "Invalid signature");
         }
-        dispatch(parse(rawBody), null);
+        JsonNode root = parse(rawBody);
+        String event = root.path("event").asText("");
+        if (event.startsWith("transfer.")) {
+            payouts.onTransferEvent(event, root.path("payload").path("transfer").path("entity"));
+            return;
+        }
+        dispatch(root, null);
     }
 
     private JsonNode parse(byte[] rawBody) {

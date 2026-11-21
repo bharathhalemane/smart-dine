@@ -27,6 +27,7 @@ public class PayoutTransfer {
     private String providerTransferId;
     private String note;
     private int attempts;
+    private boolean reversalDue;
     private Instant lockedUntil;
     private Instant createdAt;
     private Instant updatedAt;
@@ -57,6 +58,7 @@ public class PayoutTransfer {
     public String getProviderTransferId() { return providerTransferId; }
     public String getNote() { return note; }
     public int getAttempts() { return attempts; }
+    public boolean isReversalDue(){return reversalDue;}
     public Instant getLockedUntil() { return lockedUntil; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

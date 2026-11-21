@@ -12,6 +12,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -107,5 +108,24 @@ public class EarningsLedger {
             return done;
         }
         return Optional.of(entries.save(EarningsEntry.reversalOf(original.get(), reason, occurredAt, clock.instant())));
+    }
+
+    /** Money was sent to the hotel. Safe to call twice for the same payoutId (a repeated webhook). */
+    public EarningsEntry recordPayout(String hotelId, String payoutId, long amountMinor, String reason, Instant occurredAt) {
+        String key = EarningsEntry.keyOf(EarningsEntryType.PAYOUT, hotelId, payoutId);
+        Optional<EarningsEntry> existing = entries.findByUniqueKey(key);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        Hotel hotel = mongo.findById(hotelId, Hotel.class);
+        if (hotel == null) {
+            throw new IllegalArgumentException("Unknown hotel");
+        }
+        try {
+            return entries.save(EarningsEntry.payout(hotelId, payoutId, amountMinor, hotel.getCurrency(), reason,
+                    occurredAt, clock.instant()));
+        } catch (DuplicateKeyException twoWebhooksAtOnce) {
+            return entries.findByUniqueKey(key).orElseThrow(() -> twoWebhooksAtOnce);
+        }
     }
 }

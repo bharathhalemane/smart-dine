@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.qrorder.billing.model.PaymentMethod;
 import com.example.qrorder.earnings.service.EarningsLedger;
+import com.example.qrorder.payout.service.PayoutService;
 /**
  * The only place money moves on a bill. A separate bean so the transaction boundary is a real proxy call.
  * The bill's running paid counter and the ledger entry commit together or not at all.
@@ -32,11 +33,14 @@ public class PaymentWriter {
     private final MongoTemplate mongo;
     private final ApplicationEventPublisher events;
     private final EarningsLedger ledger;
+    private final PayoutService payouts;
 
-    public PaymentWriter(MongoTemplate mongo, ApplicationEventPublisher events, EarningsLedger ledger) {
+    public PaymentWriter(MongoTemplate mongo, ApplicationEventPublisher events, EarningsLedger ledger,
+                         PayoutService payouts) {
         this.mongo = mongo;
         this.events = events;
         this.ledger = ledger;
+        this.payouts = payouts;
     }
 
     /**
@@ -102,6 +106,7 @@ public class PaymentWriter {
         if (voided.getMethod() == PaymentMethod.ONLINE) {
             // a refunded online payment: the hotel gives back its share (the ledger ignores anything that was never online)
             ledger.recordReversal(hotelId, voided.getId(), reason, now);
+            payouts.markPaymentRefunded(voided.getId()); // cancels an unsent transfer, flags a sent one
         }
         events.publishEvent(new BillChanged(voided.getHotelId(), voided.getDiningSessionId(), "PAYMENT_VOIDED"));
         return voided;
