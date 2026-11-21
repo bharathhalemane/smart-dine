@@ -37,6 +37,7 @@ public class OnlinePaymentWebhookService {
     static final String RECEIVER = "online:razorpay";
 
     private final ProviderConfigService providerConfigs;
+    private final PaymentAccountResolver accounts;
     private final PaymentProviders providers;
     private final OnlinePaymentRepository attempts;
     private final DiningSessionRepository sessions;
@@ -47,11 +48,13 @@ public class OnlinePaymentWebhookService {
     private final OrderReleaseService releaser;
     private final Clock clock;
 
-    public OnlinePaymentWebhookService(ProviderConfigService providerConfigs, PaymentProviders providers,
-                                       OnlinePaymentRepository attempts, DiningSessionRepository sessions,
+
+    public OnlinePaymentWebhookService(ProviderConfigService providerConfigs,PaymentAccountResolver accounts,
+                                       PaymentProviders providers,                                       OnlinePaymentRepository attempts, DiningSessionRepository sessions,
                                        BillService bills, PaymentWriter writer, MongoTemplate mongo,
-                                       ObjectMapper json, Clock clock, OrderReleaseService releaser) {
+                                       ObjectMapper json, Clock clock, OrderReleaseService releaser                                       ) {
         this.providerConfigs = providerConfigs;
+        this.accounts = accounts;
         this.providers = providers;
         this.attempts = attempts;
         this.sessions = sessions;
@@ -63,6 +66,7 @@ public class OnlinePaymentWebhookService {
         this.releaser = releaser;
     }
 
+    /** A hotel's own webhook address: only ever acts on that hotel's attempts made with its own keys. */
     public void handle(String hookKey, byte[] rawBody, String signature) {
         HotelPaymentProvider config = providerConfigs.findByHookKey(hookKey)
                 .orElseThrow(() -> DomainException.notFound("Webhook"));
@@ -70,20 +74,42 @@ public class OnlinePaymentWebhookService {
         if (!providers.get(config.getProvider()).verifyWebhook(credentials, rawBody, signature)) {
             throw new DomainException(ErrorCode.UNAUTHENTICATED, "Invalid signature");
         }
+        dispatch(parse(rawBody), config.getHotelId());
+    }
 
-        JsonNode root;
+    /** The platform's one webhook address: only ever acts on attempts made through the platform account. */
+    public void handlePlatform(byte[] rawBody, String signature) {
+        ProviderCredentials credentials = accounts.platformCredentials()
+                .orElseThrow(() -> DomainException.notFound("Webhook"));
+        if (!providers.get("razorpay").verifyWebhook(credentials, rawBody, signature)) {
+            throw new DomainException(ErrorCode.UNAUTHENTICATED, "Invalid signature");
+        }
+        dispatch(parse(rawBody), null);
+    }
+
+    private JsonNode parse(byte[] rawBody) {
         try {
-            root = json.readTree(rawBody);
+            return json.readTree(rawBody);
         } catch (IOException e) {
             throw new DomainException(ErrorCode.VALIDATION_FAILED, "Unreadable payload");
         }
+    }
+
+    /** hotelId is the hotel whose own webhook this is, or null for the platform webhook. */
+    private void dispatch(JsonNode root, String hotelId) {
         JsonNode payment = root.path("payload").path("payment").path("entity");
         String orderId = payment.path("order_id").asText("");
         Optional<OnlinePayment> found = orderId.isEmpty() ? Optional.empty() : attempts.findByProviderOrderId(orderId);
-        if (found.isEmpty() || !found.get().getHotelId().equals(config.getHotelId())) {
-            return; // not ours, or not this hotel's: nothing to do
+        if (found.isEmpty()) {
+            return; // not ours
         }
         OnlinePayment attempt = found.get();
+        boolean ours = hotelId == null
+                ? attempt.isPlatformAccount()
+                : !attempt.isPlatformAccount() && attempt.getHotelId().equals(hotelId);
+        if (!ours) {
+            return; // the wrong webhook for this payment: nothing to do
+        }
 
         switch (root.path("event").asText("")) {
             case "payment.captured", "order.paid" -> {

@@ -26,6 +26,7 @@ public class OnlinePayment {
     private long amountMinor;
     private String currency;
     private String provider;
+    private boolean platformAccount; // paid into the platform's Razorpay account, not the hotel's own
 
     @Indexed(unique = true)
     private String providerOrderId;
@@ -82,4 +83,8 @@ public class OnlinePayment {
     public String getRequestHash() { return requestHash; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public boolean isPlatformAccount() { return platformAccount; }
+
+    /** Called once, before the attempt is first saved. */
+    public void markPlatformAccount() { this.platformAccount = true; }
 }

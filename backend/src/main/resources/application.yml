@@ -88,6 +88,11 @@ app:
     order-per-minute-per-guest: 20
     order-per-minute-per-ip: 200
     general-per-minute: 600
+  platform:
+    razorpay:
+      key-id: ${APP_RAZORPAY_KEY_ID:}
+      key-secret: ${APP_RAZORPAY_KEY_SECRET:}
+      webhook-secret: ${APP_RAZORPAY_WEBHOOK_SECRET:}
 
 
 springdoc:

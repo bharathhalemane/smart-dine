@@ -4,7 +4,6 @@ import com.example.qrorder.billing.dto.BillResponse;
 import com.example.qrorder.billing.dto.OnlinePaymentStart;
 import com.example.qrorder.billing.dto.OnlinePaymentView;
 import com.example.qrorder.billing.dto.StartOnlinePaymentRequest;
-import com.example.qrorder.billing.model.HotelPaymentProvider;
 import com.example.qrorder.billing.model.OnlinePayment;
 import com.example.qrorder.billing.model.PaymentMethod;
 import com.example.qrorder.billing.model.PaymentSettings;
@@ -37,17 +36,17 @@ public class OnlinePaymentService {
     private final OnlinePaymentRepository attempts;
     private final BillService bills;
     private final PaymentSettingsService settings;
-    private final ProviderConfigService providerConfigs;
+    private final PaymentAccountResolver accounts;
     private final PaymentProviders providers;
     private final Clock clock;
 
     public OnlinePaymentService(OnlinePaymentRepository attempts, BillService bills,
-                                PaymentSettingsService settings, ProviderConfigService providerConfigs,
+                                PaymentSettingsService settings, PaymentAccountResolver accounts,
                                 PaymentProviders providers, Clock clock) {
         this.attempts = attempts;
         this.bills = bills;
         this.settings = settings;
-        this.providerConfigs = providerConfigs;
+        this.accounts = accounts;
         this.providers = providers;
         this.clock = clock;
     }
@@ -66,8 +65,8 @@ public class OnlinePaymentService {
         }
 
         PaymentSettings accepted = settings.effective(customer.hotelId());
-        HotelPaymentProvider config = providerConfigs.find(customer.hotelId()).orElse(null);
-        if (!accepted.accepts(PaymentMethod.ONLINE) || config == null) {
+        PaymentAccountResolver.Account account = accounts.forHotel(customer.hotelId()).orElse(null);
+        if (!accepted.accepts(PaymentMethod.ONLINE) || account == null) {
             throw validation("This hotel does not take online payments");
         }
 
@@ -89,10 +88,10 @@ public class OnlinePaymentService {
         }
 
         String attemptId = new ObjectId().toHexString(); // also our receipt number at the provider
-        PaymentProvider provider = providers.get(config.getProvider());
+        PaymentProvider provider = providers.get(account.provider());
         CreatedOrder order;
         try {
-            order = provider.createOrder(providerConfigs.credentials(config), amount, bill.currency(), attemptId);
+            order = provider.createOrder(account.credentials(), amount, bill.currency(), attemptId);
         } catch (ProviderException e) {
             throw DomainException.conflict("The payment provider is not available right now, please try again");
         }
@@ -100,6 +99,9 @@ public class OnlinePaymentService {
         OnlinePayment attempt = new OnlinePayment(attemptId, customer.hotelId(), customer.diningSessionId(),
                 customer.tableNumber(), customer.customerSessionId(), customer.label(), amount, bill.currency(),
                 provider.id(), order.providerOrderId(), idempotencyKey, requestHash, clock.instant());
+        if (account.platform()) {
+            attempt.markPlatformAccount();
+        }
         try {
             attempts.insert(attempt);
         } catch (DuplicateKeyException race) {
@@ -107,7 +109,7 @@ public class OnlinePaymentService {
                     idempotencyKey).orElseThrow(() -> race);
             return replay(winner, requestHash);
         }
-        return new Started(start(attempt, config.getKeyId()), true);
+        return new Started(start(attempt, account.credentials().keyId()), true);
     }
 
     public OnlinePaymentView get(CustomerContext customer, String attemptId) {
@@ -120,7 +122,7 @@ public class OnlinePaymentService {
         if (!requestHash.equals(existing.getRequestHash())) {
             throw DomainException.conflict("This Idempotency-Key was already used for a different payment");
         }
-        String keyId = providerConfigs.find(existing.getHotelId()).map(HotelPaymentProvider::getKeyId).orElse(null);
+        String keyId = accounts.keyIdFor(existing).orElse(null);
         return new Started(start(existing, keyId), false);
     }
 
