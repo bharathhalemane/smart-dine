@@ -86,8 +86,11 @@ public class OnlinePaymentWebhookService {
         OnlinePayment attempt = found.get();
 
         switch (root.path("event").asText("")) {
-            case "payment.captured", "order.paid" -> credit(attempt, payment.path("id").asText(""),
-                    payment.path("amount").asLong(-1), payment.path("currency").asText(""));
+            case "payment.captured", "order.paid" -> {
+                JsonNode fee = payment.path("fee");
+                credit(attempt, payment.path("id").asText(""), payment.path("amount").asLong(-1),
+                        payment.path("currency").asText(""), fee.isIntegralNumber() ? fee.asLong() : null);
+            }
             case "payment.failed" -> mongo.updateFirst(
                     Query.query(Criteria.where("id").is(attempt.getId()).and("status").is(OnlinePaymentStatus.CREATED)),
                     new Update().set("status", OnlinePaymentStatus.FAILED).set("updatedAt", clock.instant()),
@@ -96,7 +99,7 @@ public class OnlinePaymentWebhookService {
         }
     }
 
-    private void credit(OnlinePayment attempt, String providerPaymentId, long amount, String currency) {
+    private void credit(OnlinePayment attempt, String providerPaymentId, long amount, String currency, Long gatewayFeeMinor) {
         if (attempt.getStatus() == OnlinePaymentStatus.CAPTURED) {
             return; // a replay
         }
@@ -123,7 +126,7 @@ public class OnlinePaymentWebhookService {
                     PaymentMethod.ONLINE, amount, providerPaymentId, "Online payment", attempt.getPayerLabel(),
                     RECEIVER, clock.instant(), "online-" + attempt.getId(), "online");
             try {
-                writer.record(entry, bill.getId(), paid);
+                writer.record(entry, bill.getId(), paid, gatewayFeeMinor);
                 markCaptured(attempt, providerPaymentId);
                 releaser.releaseQuietly(session);
                 return;
