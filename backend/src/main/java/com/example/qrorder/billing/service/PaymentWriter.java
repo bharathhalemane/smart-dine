@@ -44,13 +44,20 @@ public class PaymentWriter {
      * covers this amount, then writes the ledger entry. Two simultaneous payments can never both fit.
      */
     /** Cash, UPI and card taken by staff. These never touch the platform's gateway, so they are not in the ledger. */
+    /** Cash, UPI, card, and online payments made with the hotel's own keys: none of these are in the platform ledger. */
     @Transactional
     public Payment record(Payment payment, String billId, long expectedPaid) {
-        return record(payment, billId, expectedPaid, null);
+        return record(payment, billId, expectedPaid, false, null);
     }
 
+    /**
+     * Same as above. When viaPlatform is true (an online payment into the platform's Razorpay account) the earnings entry
+     * is written in the same transaction, so the bill, the payment and the hotel's earnings commit together or not at all.
+     *
+     * @param gatewayFeeMinor the fee Razorpay reported for this payment, or null if it reported none
+     */
     @Transactional
-    public Payment record(Payment payment, String billId, long expectedPaid, Long gatewayFeeMinor) {
+    public Payment record(Payment payment, String billId, long expectedPaid, boolean viaPlatform, Long gatewayFeeMinor) {
         long amount = payment.getAmountMinor();
         Criteria paidIs = expectedPaid == 0
                 ? new Criteria().orOperator(Criteria.where("paidMinor").is(0L), Criteria.where("paidMinor").exists(false))
@@ -64,7 +71,7 @@ public class PaymentWriter {
             throw new StaleBillException();
         }
         Payment saved = mongo.insert(payment);
-        if (saved.getMethod() == PaymentMethod.ONLINE) {
+        if (viaPlatform && saved.getMethod() == PaymentMethod.ONLINE) {
             ledger.recordOnlineCapture(saved.getHotelId(), saved.getId(), saved.getBillId(), saved.getDiningSessionId(),
                     saved.getReference(), saved.getAmountMinor(), gatewayFeeMinor, saved.getReceivedAt());
         }

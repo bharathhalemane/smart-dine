@@ -45,7 +45,7 @@ class EarningsWiringIT extends AbstractIntegrationTest {
     void anOnlinePaymentWritesItsEarningsEntryWithTheWebhookFee() {
         Fixture f = Fixture.create(mongo, 10_000);
 
-        Payment saved = writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 0, 236L);
+        Payment saved = writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 0, true, 236L);
 
         List<EarningsEntry> all = entries.findAll();
         assertThat(all).hasSize(1);
@@ -56,10 +56,19 @@ class EarningsWiringIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void anOnlinePaymentWithTheHotelsOwnKeysIsNotInThePlatformLedger() {
+        Fixture f = Fixture.create(mongo, 10_000);
+
+        writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 0); // viaPlatform = false
+
+        assertThat(entries.count()).isZero();
+    }
+
+    @Test
     void aMissingFeeIsFlaggedUnknown() {
         Fixture f = Fixture.create(mongo, 10_000);
 
-        writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 0);
+        writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 0, true, null);
 
         assertThat(entries.findAll().get(0).getFeeSource()).isEqualTo(FeeSource.UNKNOWN);
     }
@@ -76,7 +85,7 @@ class EarningsWiringIT extends AbstractIntegrationTest {
     @Test
     void voidingAnOnlinePaymentReversesItOnce() {
         Fixture f = Fixture.create(mongo, 10_000);
-        Payment saved = writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 0, 236L);
+        Payment saved = writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 0, true, 236L);
 
         writer.voidPayment(f.hotelId, saved.getId(), "user-1", "Guest cancelled", Instant.now());
         Payment again = writer.voidPayment(f.hotelId, saved.getId(), "user-1", "Guest cancelled", Instant.now());
@@ -103,7 +112,7 @@ class EarningsWiringIT extends AbstractIntegrationTest {
         Fixture f = Fixture.create(mongo, 10_000);
 
         try {
-            writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 5_000, 0L); // wrong expectedPaid
+            writer.record(online(f.hotelId, f.sessionId, f.billId, 10_000, "k1"), f.billId, 5_000, true, 0L); // wrong expectedPaid
         } catch (PaymentWriter.StaleBillException expected) {
             // fine
         }

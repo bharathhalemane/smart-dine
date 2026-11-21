@@ -15,9 +15,12 @@ import com.example.qrorder.dining.model.DiningSession;
 import com.example.qrorder.dining.repository.DiningSessionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.qrorder.payout.service.PayoutService;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -47,12 +50,14 @@ public class OnlinePaymentWebhookService {
     private final ObjectMapper json;
     private final OrderReleaseService releaser;
     private final Clock clock;
+    private final PayoutService payouts;
+    private static final Logger log = LoggerFactory.getLogger(OnlinePaymentWebhookService.class);
 
 
     public OnlinePaymentWebhookService(ProviderConfigService providerConfigs,PaymentAccountResolver accounts,
                                        PaymentProviders providers,                                       OnlinePaymentRepository attempts, DiningSessionRepository sessions,
                                        BillService bills, PaymentWriter writer, MongoTemplate mongo,
-                                       ObjectMapper json, Clock clock, OrderReleaseService releaser                                       ) {
+                                       ObjectMapper json, Clock clock, OrderReleaseService releaser, PayoutService payouts                                   ) {
         this.providerConfigs = providerConfigs;
         this.accounts = accounts;
         this.providers = providers;
@@ -64,6 +69,7 @@ public class OnlinePaymentWebhookService {
         this.json = json;
         this.clock = clock;
         this.releaser = releaser;
+        this.payouts = payouts;
     }
 
     /** A hotel's own webhook address: only ever acts on that hotel's attempts made with its own keys. */
@@ -152,8 +158,9 @@ public class OnlinePaymentWebhookService {
                     PaymentMethod.ONLINE, amount, providerPaymentId, "Online payment", attempt.getPayerLabel(),
                     RECEIVER, clock.instant(), "online-" + attempt.getId(), "online");
             try {
-                writer.record(entry, bill.getId(), paid, gatewayFeeMinor);
+                Payment saved = writer.record(entry, bill.getId(), paid, attempt.isPlatformAccount(), gatewayFeeMinor);
                 markCaptured(attempt, providerPaymentId);
+                scheduleTransfer(attempt, saved.getId(), providerPaymentId);
                 releaser.releaseQuietly(session);
                 return;
             } catch (PaymentWriter.StaleBillException stale) {
@@ -161,6 +168,11 @@ public class OnlinePaymentWebhookService {
             } catch (DuplicateKeyException alreadyCounted) {
                 markCaptured(attempt, providerPaymentId); // this very payment was counted by an earlier delivery
                 releaser.releaseQuietly(session); // and make sure the orders it paid for were released
+                Payment counted = mongo.findOne(Query.query(Criteria.where("diningSessionId").is(attempt.getDiningSessionId())
+                        .and("idempotencyKey").is("online-" + attempt.getId())), Payment.class);
+                if (counted != null) {
+                    scheduleTransfer(attempt, counted.getId(), providerPaymentId);
+                }
                 return;
             } catch (RuntimeException e) {
                 if (!PaymentService.isTransient(e)) {
@@ -170,6 +182,19 @@ public class OnlinePaymentWebhookService {
             }
         }
         throw DomainException.conflict("The bill is changing, please try again"); // 409: the provider retries
+    }
+
+
+    /** Money is already counted at this point, so a failure here must never fail the webhook. It is logged for the sweeper (2b). */
+    private void scheduleTransfer(OnlinePayment attempt, String paymentId, String providerPaymentId) {
+        if (!attempt.isPlatformAccount()) {
+            return; // the hotel was paid directly
+        }
+        try {
+            payouts.schedule(attempt.getHotelId(), paymentId, providerPaymentId);
+        } catch (RuntimeException e) {
+            log.error("Could not schedule the payout for payment {} of hotel {}", paymentId, attempt.getHotelId(), e);
+        }
     }
 
     private void markCaptured(OnlinePayment attempt, String providerPaymentId) {
